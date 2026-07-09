@@ -29,12 +29,13 @@ function makeWindowTexture() {
   const c = document.createElement('canvas')
   c.width = 128; c.height = 128
   const g = c.getContext('2d')
-  const bases = ['#a8adb3', '#b9b2a4', '#9fb0b8', '#c2beb2', '#aab6ab']
+  // 暖色磚紅／米黃／木色系，取代原本偏冷的灰藍色，更接近台南街屋日曬褪色的外牆質感
+  const bases = ['#c9a876', '#b5895f', '#d4b483', '#a67c52', '#c2a878', '#b98f6a']
   g.fillStyle = pick(bases)
   g.fillRect(0, 0, 128, 128)
   for (let y = 10; y < 118; y += 26) {
     for (let x = 10; x < 118; x += 26) {
-      g.fillStyle = Math.random() < 0.3 ? '#ffe9a8' : '#33414d'
+      g.fillStyle = Math.random() < 0.3 ? '#ffd98a' : '#3a2f28'
       g.fillRect(x, y, 15, 17)
     }
   }
@@ -346,6 +347,135 @@ function makeTree() {
   return g
 }
 
+// 老榕樹：寬闊樹冠垂掛氣根，台南街頭常見的老樹意象
+function makeBanyanTree() {
+  const g = new THREE.Group()
+  const barkMat = new THREE.MeshStandardMaterial({ color: 0x5c4530, roughness: 0.95 })
+  const leafMat = new THREE.MeshStandardMaterial({ color: pick([0x3f7d3a, 0x4c8a3f, 0x477a42]), roughness: 0.95 })
+
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 2.6, 8), barkMat)
+  trunk.position.y = 1.3
+  g.add(trunk)
+
+  const crownR = rand(2.2, 3.0)
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(crownR, 10, 8), leafMat)
+  crown.scale.y = 0.6
+  crown.position.y = 3.3
+  crown.castShadow = true
+  g.add(crown)
+
+  // 垂掛氣根
+  const rootMat = new THREE.MeshStandardMaterial({ color: 0x8a7256, roughness: 0.9 })
+  const rootCount = 4 + Math.floor(Math.random() * 3)
+  for (let i = 0; i < rootCount; i++) {
+    const a = (i / rootCount) * Math.PI * 2 + rand(-0.3, 0.3)
+    const r = rand(0.6, crownR * 0.8)
+    const rx = Math.cos(a) * r
+    const rz = Math.sin(a) * r
+    const topY = rand(2.6, 3.6)
+    const len = rand(1.4, topY - 0.1)
+    const root = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, len, 5), rootMat)
+    root.position.set(rx, topY - len / 2, rz)
+    g.add(root)
+  }
+  return g
+}
+
+// 停放機車：純造景，增添巷弄生活感
+function makeScooter() {
+  const g = new THREE.Group()
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: pick([0xd6483f, 0x3f5fd6, 0xd6c93f, 0x454545, 0xe0e0e0]),
+    roughness: 0.5, metalness: 0.3,
+  })
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.9 })
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 })
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 1.5), bodyMat)
+  body.position.y = 0.5
+  g.add(body)
+
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.12, 0.7), darkMat)
+  seat.position.set(0, 0.76, -0.1)
+  g.add(seat)
+
+  const handlebar = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.06, 0.06), darkMat)
+  handlebar.position.set(0, 0.92, 0.65)
+  g.add(handlebar)
+
+  for (const zOff of [0.55, -0.55]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.1, 12), wheelMat)
+    wheel.rotation.z = Math.PI / 2
+    wheel.position.set(0, 0.28, zOff)
+    g.add(wheel)
+  }
+  return g
+}
+
+// 廟宇風格建築：紅牆、燕尾脊屋頂，混入低樓層街景增添台南味
+function makeTempleBuilding(w, d) {
+  const g = new THREE.Group()
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x8a2e2e, roughness: 0.85 })
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.8 })
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x2f4a3a, roughness: 0.7 })
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.4, metalness: 0.5 })
+
+  const h = rand(5, 8)
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat)
+  wall.position.y = h / 2
+  wall.castShadow = true
+  wall.receiveShadow = true
+  g.add(wall)
+
+  // 紅柱（正面立柱裝飾）
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, h, 8), trimMat)
+      pillar.position.set(sx * (w / 2 - 0.3), h / 2, sz * (d / 2 - 0.3))
+      g.add(pillar)
+    }
+  }
+
+  // 屋簷（比牆體略寬的扁平屋頂基底）
+  const eaveW = w * 1.25
+  const eaveD = d * 1.25
+  const eave = new THREE.Mesh(new THREE.BoxGeometry(eaveW, 0.4, eaveD), roofMat)
+  eave.position.y = h + 0.2
+  eave.castShadow = true
+  g.add(eave)
+
+  // 正脊金色滾邊
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(eaveW * 0.9, 0.15, 0.15), goldMat)
+  ridge.position.y = h + 0.42
+  g.add(ridge)
+
+  // 燕尾脊：四個屋角向上翹起的裝飾
+  const wingGeo = new THREE.BoxGeometry(0.22, 1.1, 0.22)
+  const corners = [
+    [eaveW / 2 - 0.3, eaveD / 2 - 0.3], [eaveW / 2 - 0.3, -eaveD / 2 + 0.3],
+    [-eaveW / 2 + 0.3, eaveD / 2 - 0.3], [-eaveW / 2 + 0.3, -eaveD / 2 + 0.3],
+  ]
+  for (const [cx, cz] of corners) {
+    const wing = new THREE.Mesh(wingGeo, roofMat)
+    wing.position.set(cx, h + 0.85, cz)
+    wing.rotation.z = Math.sign(cx) * 0.5
+    wing.rotation.x = Math.sign(cz) * 0.5
+    g.add(wing)
+  }
+
+  // 門前紅燈籠
+  for (const sx of [-1, 1]) {
+    const lantern = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xc73a3a, emissive: 0x7a1c1c, emissiveIntensity: 0.4, roughness: 0.7 })
+    )
+    lantern.position.set(sx * (w / 2 - 0.6), h - 0.6, d / 2 + 0.15)
+    g.add(lantern)
+  }
+
+  return g
+}
+
 // ---------- 建立整個城市 ----------
 export function createWorld(scene) {
   const colliders = []      // 建築碰撞盒（已依無人機半徑外擴）
@@ -358,7 +488,7 @@ export function createWorld(scene) {
   // 地面（柏油）
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(GRID * PITCH + 80, GRID * PITCH + 80),
-    new THREE.MeshStandardMaterial({ color: 0x3d4248, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ color: 0x45403a, roughness: 0.95 })
   )
   ground.rotation.x = -Math.PI / 2
   ground.receiveShadow = true
@@ -384,17 +514,19 @@ export function createWorld(scene) {
   const lotSpots = []       // 空地中心（放廢棄物）
 
   let signIdx = 0
+  let spawnPoint = null // 保留空地街區（無建築）的實際中心座標，供無人機安全重生用
 
   for (let bx = 0; bx < GRID; bx++) {
     for (let bz = 0; bz < GRID; bz++) {
       const cx = -HALF + bx * PITCH + BLOCK / 2
       const cz = -HALF + bz * PITCH + BLOCK / 2
       const isCenter = bx === Math.floor(GRID / 2) && bz === Math.floor(GRID / 2)
+      if (isCenter) spawnPoint = new THREE.Vector3(cx, 18, cz)
 
       // 街區底座（人行道/基地）
       const pad = new THREE.Mesh(
         new THREE.BoxGeometry(BLOCK + 2, 0.2, BLOCK + 2),
-        new THREE.MeshStandardMaterial({ color: 0x8f8f86, roughness: 0.95 })
+        new THREE.MeshStandardMaterial({ color: 0xa89a7e, roughness: 0.95 })
       )
       pad.position.set(cx, 0.1, cz)
       pad.receiveShadow = true
@@ -416,7 +548,7 @@ export function createWorld(scene) {
         }
         // 空地內雜草
         for (let i = 0; i < 3; i++) {
-          const tree = makeTree()
+          const tree = Math.random() < 0.3 ? makeBanyanTree() : makeTree()
           tree.position.set(cx + rand(-9, 9), 0.2, cz + rand(-9, 9))
           scene.add(tree)
         }
@@ -438,13 +570,26 @@ export function createWorld(scene) {
 
           const w = rand(sub * 0.62, sub * 0.85)
           const d = rand(sub * 0.62, sub * 0.85)
+
+          // 一部分低樓改成廟宇風格建築，增添台南街景的辨識度
+          if (Math.random() < 0.12) {
+            const temple = makeTempleBuilding(w * 0.85, d * 0.85)
+            temple.position.set(px, 0.2, pz)
+            scene.add(temple)
+
+            const box = new THREE.Box3().setFromObject(temple)
+            box.expandByScalar(0.9)
+            colliders.push(box)
+            continue // 廟宇屋頂造型特殊，不納入水塔/雜物屋頂點位
+          }
+
           const h = rand(8, 34)
 
           const sideMat = new THREE.MeshStandardMaterial({ map: windowTex.clone(), roughness: 0.85 })
           sideMat.map.repeat.set(Math.max(1, Math.round(w / 6)), Math.max(1, Math.round(h / 6)))
           sideMat.map.needsUpdate = true
           const roofMat = new THREE.MeshStandardMaterial({
-            color: pick([0x7d8288, 0x8a8478, 0x757d84]),
+            color: pick([0x9c8060, 0xa88f6a, 0x8f7a5a]),
             roughness: 0.95,
           })
           const building = new THREE.Mesh(
@@ -494,9 +639,22 @@ export function createWorld(scene) {
 
       // 行道樹
       if (Math.random() < 0.5) {
-        const tree = makeTree()
+        const tree = Math.random() < 0.3 ? makeBanyanTree() : makeTree()
         tree.position.set(cx + BLOCK / 2 + 3, 0, cz + rand(-BLOCK / 2, BLOCK / 2))
         scene.add(tree)
+      }
+
+      // 路邊停放機車：純造景，增添巷弄生活感
+      if (Math.random() < 0.3) {
+        const scooterX = cx + (Math.random() < 0.5 ? -1 : 1) * (BLOCK / 2 + 1.6)
+        const scooterZ = cz + rand(-BLOCK / 2 + 3, BLOCK / 2 - 3)
+        const count = 1 + Math.floor(Math.random() * 2)
+        for (let i = 0; i < count; i++) {
+          const scooter = makeScooter()
+          scooter.rotation.y = Math.PI / 2 + rand(-0.08, 0.08)
+          scooter.position.set(scooterX, 0, scooterZ + i * 1.1)
+          scene.add(scooter)
+        }
       }
     }
   }
@@ -576,7 +734,7 @@ export function createWorld(scene) {
     place(extra, 6 - containerPlaced, true, 'container', makeContainer, (s) => s.y)
   }
 
-  return { colliders, inspectables, targets, waterMeshes }
+  return { colliders, inspectables, targets, waterMeshes, spawnPoint }
 }
 
 // 找到目標後的綠色光柱標記

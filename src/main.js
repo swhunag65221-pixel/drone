@@ -37,7 +37,7 @@ scene.add(sun)
 const worldGroup = new THREE.Group()
 scene.add(worldGroup)
 
-let colliders, inspectables, targets, waterMeshes
+let colliders, inspectables, targets, waterMeshes, spawnPoint
 
 function disposeWorld() {
   worldGroup.traverse((obj) => {
@@ -53,12 +53,12 @@ function disposeWorld() {
 
 function buildWorld() {
   disposeWorld()
-  ;({ colliders, inspectables, targets, waterMeshes } = createWorld(worldGroup))
+  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint } = createWorld(worldGroup))
 }
 
 buildWorld()
 const drone = new DroneController(camera)
-drone.reset(new THREE.Vector3(0, 18, 30))
+drone.reset(spawnPoint)
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
@@ -204,7 +204,7 @@ function endGame() {
 
 function startNewRound() {
   buildWorld()
-  drone.reset(new THREE.Vector3(0, 18, 30))
+  drone.reset(spawnPoint)
 
   state = 'start'
   timeLeft = GAME_TIME
