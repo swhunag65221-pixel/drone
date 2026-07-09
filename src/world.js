@@ -64,7 +64,29 @@ function makeSignTexture(text) {
 const SIGN_TEXTS = [
   '台南牛肉湯', '國華街小吃', '安平劍獅', '赤崁擔仔麵', '鹽水意麵',
   '東山咖啡', '關廟鳳梨', '虱目魚粥', '永樂市場', '學甲五金行',
+  '安平運河', '度小月', '棺材板', '碗粿專賣', '同記安平豆花',
 ]
+
+// 直式招牌（突出式，垂直懸掛，字由上往下排）
+function makeVerticalSignTexture(text) {
+  const c = document.createElement('canvas')
+  c.width = 64; c.height = 256
+  const g = c.getContext('2d')
+  g.fillStyle = pick(['#c62828', '#1565c0', '#2e7d32', '#e65100', '#6a1b9a'])
+  g.fillRect(0, 0, 64, 256)
+  g.fillStyle = '#ffffff'
+  g.font = 'bold 28px "Noto Sans TC", "Microsoft JhengHei", sans-serif'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  const chars = text.slice(0, 5).split('')
+  const lineH = 240 / chars.length
+  chars.forEach((ch, i) => {
+    g.fillText(ch, 32, 8 + lineH * (i + 0.5))
+  })
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
 
 // 積水水面材質（會反光閃爍，是玩家找目標的線索）
 function makeWaterMaterial() {
@@ -476,6 +498,60 @@ function makeTempleBuilding(w, d) {
   return g
 }
 
+// 騎樓：低樓建築前方外推的遮簷走廊，柱列造型是台灣街屋代表意象。
+// 回傳騎樓下方的座標，可作為容器積水的新藏匿點（有遮蔽、從空中看不到）。
+function addArcade(scene, px, pz, w, d) {
+  const roofH = 3.6
+  const depth = 2.0
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b5842, roughness: 0.85 })
+  const pillarMat = new THREE.MeshStandardMaterial({ color: 0xc9a876, roughness: 0.8 })
+
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, depth), roofMat)
+  roof.position.set(px, roofH, pz + d / 2 + depth / 2)
+  roof.castShadow = true
+  scene.add(roof)
+
+  const pillarCount = Math.max(2, Math.round(w / 3))
+  for (let i = 0; i < pillarCount; i++) {
+    const ppx = px - w / 2 + (i + 0.5) * (w / pillarCount)
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, roofH, 8), pillarMat)
+    pillar.position.set(ppx, roofH / 2, pz + d / 2 + depth - 0.2)
+    scene.add(pillar)
+  }
+
+  // 部分騎樓下掛紅燈籠串
+  if (Math.random() < 0.4) {
+    const lanternMat = new THREE.MeshStandardMaterial({
+      color: 0xc73a3a, emissive: 0x7a1c1c, emissiveIntensity: 0.4, roughness: 0.7,
+    })
+    const n = 3
+    for (let i = 0; i < n; i++) {
+      const lx = px - w / 3 + (i / (n - 1)) * (w * 2 / 3)
+      const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), lanternMat)
+      lantern.position.set(lx, roofH - 0.35, pz + d / 2 + depth - 0.3)
+      scene.add(lantern)
+    }
+  }
+
+  return { x: px, z: pz + d / 2 + depth * 0.6 }
+}
+
+// 運河小船：純造景
+function makeBoat() {
+  const g = new THREE.Group()
+  const hullMat = new THREE.MeshStandardMaterial({ color: pick([0x8a5a3a, 0x5a6a7a, 0x3a5a4a]), roughness: 0.7 })
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, 3.2), hullMat)
+  hull.position.y = 0.25
+  g.add(hull)
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.6, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0xe0dccb, roughness: 0.8 })
+  )
+  cabin.position.set(0, 0.75, -0.6)
+  g.add(cabin)
+  return g
+}
+
 // ---------- 建立整個城市 ----------
 export function createWorld(scene) {
   const colliders = []      // 建築碰撞盒（已依無人機半徑外擴）
@@ -494,19 +570,61 @@ export function createWorld(scene) {
   ground.receiveShadow = true
   scene.add(ground)
 
-  // 街道中線
+  // 安平運河：取代其中一條東西向街道，明顯與任務中的隱藏積水區隔開來
+  const CANAL_ROW = Math.floor(GRID / 2) + 2
+  const canalZ = -HALF + CANAL_ROW * PITCH - STREET / 2
+  const canalWidth = STREET * 0.85
+  const canalLen = GRID * PITCH + 80
+
+  // 街道中線（運河那一排跳過，改由運河本身呈現）
   const lineMat = new THREE.MeshBasicMaterial({ color: 0xd8d8c8 })
   for (let i = 0; i <= GRID; i++) {
     const p = -HALF + i * PITCH - STREET / 2
     if (i === 0) continue
-    const lineH = new THREE.Mesh(new THREE.PlaneGeometry(GRID * PITCH, 0.35), lineMat)
-    lineH.rotation.x = -Math.PI / 2
-    lineH.position.set(0, 0.02, p)
-    scene.add(lineH)
+    if (i !== CANAL_ROW) {
+      const lineH = new THREE.Mesh(new THREE.PlaneGeometry(GRID * PITCH, 0.35), lineMat)
+      lineH.rotation.x = -Math.PI / 2
+      lineH.position.set(0, 0.02, p)
+      scene.add(lineH)
+    }
     const lineV = new THREE.Mesh(new THREE.PlaneGeometry(0.35, GRID * PITCH), lineMat)
     lineV.rotation.x = -Math.PI / 2
     lineV.position.set(p, 0.02, 0)
     scene.add(lineV)
+  }
+
+  // 運河水面
+  const canalWater = new THREE.Mesh(
+    new THREE.PlaneGeometry(canalLen, canalWidth),
+    new THREE.MeshStandardMaterial({ color: 0x2a5f7a, roughness: 0.15, metalness: 0.3 })
+  )
+  canalWater.rotation.x = -Math.PI / 2
+  canalWater.position.set(0, 0.05, canalZ)
+  scene.add(canalWater)
+
+  // 堤岸
+  const embankMat = new THREE.MeshStandardMaterial({ color: 0xb7ab94, roughness: 0.9 })
+  for (const side of [-1, 1]) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(canalLen, 0.9, 0.6), embankMat)
+    wall.position.set(0, 0.45, canalZ + side * (canalWidth / 2 + 0.3))
+    scene.add(wall)
+  }
+
+  // 跨運河橋樑（對應每條南北向街道）
+  const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.8 })
+  for (let j = 1; j <= GRID; j++) {
+    const bx = -HALF + j * PITCH - STREET / 2
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(STREET, 0.3, canalWidth + 1.2), bridgeMat)
+    bridge.position.set(bx, 0.35, canalZ)
+    scene.add(bridge)
+  }
+
+  // 運河上的小船
+  for (let i = 0; i < 3; i++) {
+    const boat = makeBoat()
+    boat.rotation.y = rand(-0.2, 0.2)
+    boat.position.set(rand(-HALF + 20, HALF - 20), 0.08, canalZ + rand(-canalWidth / 4, canalWidth / 4))
+    scene.add(boat)
   }
 
   const roofSpots = []      // 可放水塔的屋頂 {x, y, z}
@@ -625,6 +743,23 @@ export function createWorld(scene) {
             )
             sign.position.set(px, 4.2, pz + d / 2 + 0.06)
             scene.add(sign)
+          }
+
+          // 突出式直式招牌
+          if (h < 16 && Math.random() < 0.3) {
+            const vsign = new THREE.Mesh(
+              new THREE.PlaneGeometry(1.1, 2.6),
+              new THREE.MeshBasicMaterial({ map: makeVerticalSignTexture(pick(SIGN_TEXTS)), side: THREE.DoubleSide })
+            )
+            vsign.rotation.y = Math.PI / 2
+            vsign.position.set(px + w / 2 + 0.55, 4.0, pz + d / 2 - 1.2)
+            scene.add(vsign)
+          }
+
+          // 騎樓：外推遮簷走廊，底下也可能藏著積水容器
+          if (h < 16 && Math.random() < 0.4) {
+            const spot = addArcade(scene, px, pz, w, d)
+            if (Math.random() < 0.5) groundSpots.push(spot)
           }
         }
       }
