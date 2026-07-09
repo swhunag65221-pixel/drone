@@ -552,6 +552,110 @@ function makeBoat() {
   return g
 }
 
+// 燕尾脊裝飾：在屋簷四個角落加上向上翹起的裝飾，共用於廟宇與地標建築
+function addSwallowWings(group, eaveW, eaveD, y, roofMat) {
+  const wingGeo = new THREE.BoxGeometry(0.2, 0.9, 0.2)
+  const corners = [
+    [eaveW / 2 - 0.25, eaveD / 2 - 0.25], [eaveW / 2 - 0.25, -eaveD / 2 + 0.25],
+    [-eaveW / 2 + 0.25, eaveD / 2 - 0.25], [-eaveW / 2 + 0.25, -eaveD / 2 + 0.25],
+  ]
+  for (const [cx, cz] of corners) {
+    const wing = new THREE.Mesh(wingGeo, roofMat)
+    wing.position.set(cx, y + 0.65, cz)
+    wing.rotation.z = Math.sign(cx) * 0.5
+    wing.rotation.x = Math.sign(cz) * 0.5
+    group.add(wing)
+  }
+}
+
+// 赤崁樓：城市中央廣場的地標建築（純造景、不可互動，僅供飛行時辨認方向）
+function makeChihkanTower() {
+  const g = new THREE.Group()
+
+  const brickMat = new THREE.MeshStandardMaterial({ color: 0x9c5a3c, roughness: 0.85 })
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xd8c7a0, roughness: 0.8 })
+  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x9c2020, roughness: 0.7 })
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x1f3a2e, roughness: 0.65 })
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.4, metalness: 0.5 })
+  const archMat = new THREE.MeshStandardMaterial({ color: 0x4a2c1e, roughness: 0.9 })
+
+  // 紅磚城座（普羅民遮城基座意象）
+  const baseW = 13, baseD = 9, baseH = 3.6
+  const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, baseH, baseD), brickMat)
+  base.position.y = baseH / 2
+  base.castShadow = true
+  base.receiveShadow = true
+  g.add(base)
+
+  // 城座立面仿拱門的裝飾陰影
+  for (const face of [1, -1]) {
+    for (let i = -1; i <= 1; i++) {
+      const arch = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 0.25), archMat)
+      arch.position.set(i * 3.6, 1.3, face * (baseD / 2 + 0.05))
+      g.add(arch)
+    }
+  }
+
+  // 重簷閣樓（海神廟／文昌閣意象），各自兩層屋頂
+  function makePavilion() {
+    const pg = new THREE.Group()
+    const wallW = 4.6, wallD = 4.6, wallH = 3.0
+
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(wallW, wallH, wallD), wallMat)
+    wall.position.y = wallH / 2
+    wall.castShadow = true
+    pg.add(wall)
+
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, wallH, 8), pillarMat)
+        pillar.position.set(sx * (wallW / 2 - 0.25), wallH / 2, sz * (wallD / 2 - 0.25))
+        pg.add(pillar)
+      }
+    }
+
+    // 下層屋簷
+    const lowerEaveW = wallW * 1.35, lowerEaveD = wallD * 1.35
+    const lowerEave = new THREE.Mesh(new THREE.BoxGeometry(lowerEaveW, 0.35, lowerEaveD), roofMat)
+    lowerEave.position.y = wallH + 0.18
+    lowerEave.castShadow = true
+    pg.add(lowerEave)
+    addSwallowWings(pg, lowerEaveW, lowerEaveD, wallH + 0.18, roofMat)
+
+    // 上層小閣
+    const upperWallH = 1.5
+    const upperWall = new THREE.Mesh(new THREE.BoxGeometry(wallW * 0.65, upperWallH, wallD * 0.65), wallMat)
+    upperWall.position.y = wallH + 0.36 + upperWallH / 2
+    pg.add(upperWall)
+
+    const upperEaveW = wallW * 0.65 * 1.35, upperEaveD = wallD * 0.65 * 1.35
+    const upperEave = new THREE.Mesh(new THREE.BoxGeometry(upperEaveW, 0.3, upperEaveD), roofMat)
+    upperEave.position.y = wallH + 0.36 + upperWallH + 0.15
+    pg.add(upperEave)
+    addSwallowWings(pg, upperEaveW, upperEaveD, wallH + 0.36 + upperWallH + 0.15, roofMat)
+
+    // 正脊金色滾邊與寶頂
+    const ridgeY = wallH + 0.36 + upperWallH + 0.32
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(upperEaveW * 0.85, 0.12, 0.12), goldMat)
+    ridge.position.y = ridgeY
+    pg.add(ridge)
+    const finial = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), goldMat)
+    finial.position.y = ridgeY + 0.3
+    pg.add(finial)
+
+    return pg
+  }
+
+  const pavA = makePavilion()
+  pavA.position.set(-3.6, baseH + 0.15, 0)
+  g.add(pavA)
+  const pavB = makePavilion()
+  pavB.position.set(3.6, baseH + 0.15, 0)
+  g.add(pavB)
+
+  return g
+}
+
 // ---------- 建立整個城市 ----------
 export function createWorld(scene) {
   const colliders = []      // 建築碰撞盒（已依無人機半徑外擴）
@@ -650,8 +754,17 @@ export function createWorld(scene) {
       pad.receiveShadow = true
       scene.add(pad)
 
-      // 中央街區留空當出發廣場；其餘 ~18% 是空地
-      if (isCenter) continue
+      // 中央街區留空當出發廣場，並放置赤崁樓地標；其餘 ~18% 是空地
+      if (isCenter) {
+        const landmark = makeChihkanTower()
+        landmark.position.set(cx, 0.2, cz - 7)
+        scene.add(landmark)
+
+        const landmarkBox = new THREE.Box3().setFromObject(landmark)
+        landmarkBox.expandByScalar(0.9)
+        colliders.push(landmarkBox)
+        continue
+      }
       if (Math.random() < 0.18) {
         lotSpots.push({ x: cx, z: cz })
         // 空地圍牆
