@@ -193,7 +193,8 @@ const clock = new THREE.Clock()
 
 function animate() {
   requestAnimationFrame(animate)
-  const dt = Math.min(clock.getDelta(), 0.05)
+  const rawDt = clock.getDelta()
+  const dt = Math.min(rawDt, 0.05) // physics 用：低幀率時鉗制，避免無人機穿牆
   const t = clock.elapsedTime
 
   // 水面閃爍（找目標的視覺線索）
@@ -202,8 +203,9 @@ function animate() {
   })
 
   if (state === 'playing') {
-    timeLeft -= dt
-    markCooldown = Math.max(0, markCooldown - dt)
+    // 倒數計時用真實經過時間，避免低幀率時「時間變慢」，確保 60 秒任務時限對應真實時間
+    timeLeft -= rawDt
+    markCooldown = Math.max(0, markCooldown - rawDt)
     if (timeLeft <= 0) {
       timeLeft = 0
       endGame()
