@@ -198,11 +198,10 @@ function makeContainer(hasWater, waterMeshes) {
   return g
 }
 
-// 屋簷雨水槽：沿屋頂邊緣的排水溝，落葉堵塞後容易積水
-function makeGutter(hasWater, waterMeshes) {
+// 屋簷雨水槽：沿屋頂邊緣的排水溝，長度對應該屋頂邊的長度，落葉堵塞後容易積水
+function makeGutter(hasWater, waterMeshes, length = 3.2) {
   const g = new THREE.Group()
   const metal = new THREE.MeshStandardMaterial({ color: 0x8a8f94, roughness: 0.6, metalness: 0.5 })
-  const length = 3.2
   const width = 0.45
   const wallH = 0.22
 
@@ -219,7 +218,8 @@ function makeGutter(hasWater, waterMeshes) {
   g.add(wallBack)
 
   const leafMat = new THREE.MeshStandardMaterial({ color: 0x6b7d3f, roughness: 0.95 })
-  for (let i = 0; i < 3; i++) {
+  const leafCount = Math.max(2, Math.round(length / 1.1))
+  for (let i = 0; i < leafCount; i++) {
     const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.12, 6), leafMat)
     leaf.rotation.x = -Math.PI / 2
     leaf.position.set(rand(-length / 2 + 0.3, length / 2 - 0.3), 0.09, rand(-0.15, 0.15))
@@ -277,35 +277,75 @@ function makeRoofGarden(hasWater, waterMeshes) {
   return g
 }
 
-// 帆布蓋建材：空地／工地上，帆布蓋著建材堆，中央凹陷處積水
+// 藍白條紋帆布材質，工地常見的帆布樣式
+function makeTarpTexture() {
+  const c = document.createElement('canvas')
+  c.width = 128; c.height = 128
+  const g = c.getContext('2d')
+  const stripeW = 16
+  for (let x = 0; x < 128; x += stripeW) {
+    g.fillStyle = (Math.floor(x / stripeW) % 2 === 0) ? '#4a90c2' : '#eef2f5'
+    g.fillRect(x, 0, stripeW, 128)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// 帆布蓋建材：空地／工地上，大長方形藍白帆布蓋著棧板建材堆，繩索綁著，皺褶處積水
 function makeTarpPile(hasWater, waterMeshes) {
   const g = new THREE.Group()
-  const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.9 })
-  for (let i = 0; i < 3; i++) {
-    const h = rand(0.4, 0.7)
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(rand(0.6, 1), h, rand(0.6, 1)), crateMat)
-    crate.position.set(rand(-0.8, 0.8), h / 2, rand(-0.8, 0.8))
+
+  // 底下堆疊的棧板/建材
+  const crateMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.85 })
+  const stackW = rand(2.0, 2.6)
+  const stackD = rand(1.3, 1.7)
+  const layers = 2 + Math.floor(Math.random() * 2)
+  for (let i = 0; i < layers; i++) {
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(stackW, 0.2, stackD), crateMat)
+    crate.position.y = 0.12 + i * 0.24
     g.add(crate)
   }
+  const topY = 0.12 + layers * 0.24 + 0.08
 
-  const tarpMat = new THREE.MeshStandardMaterial({
-    color: pick([0x2f6f8f, 0x3f7a4f, 0x6f6f3f]),
-    roughness: 0.8,
-    side: THREE.DoubleSide,
-  })
-  const tarp = new THREE.Mesh(new THREE.CircleGeometry(1.8, 20), tarpMat)
-  tarp.rotation.x = -Math.PI / 2
-  tarp.position.y = 0.75
-  g.add(tarp)
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.08, 6, 20), tarpMat)
-  rim.rotation.x = Math.PI / 2
-  rim.position.y = 0.85
-  g.add(rim)
+  // 大長方形帆布：頂面 + 四邊垂落的裙面，覆蓋整堆建材
+  const tarpTex = makeTarpTexture()
+  const tarpMat = new THREE.MeshStandardMaterial({ map: tarpTex, roughness: 0.75, side: THREE.DoubleSide })
+  const tarpW = stackW + 0.8
+  const tarpD = stackD + 0.8
+
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(tarpW, tarpD), tarpMat)
+  top.rotation.x = -Math.PI / 2
+  top.position.y = topY
+  g.add(top)
+
+  const skirtH = 0.85
+  const skirts = [
+    { w: tarpW, x: 0, z: tarpD / 2, ry: 0 },
+    { w: tarpW, x: 0, z: -tarpD / 2, ry: Math.PI },
+    { w: tarpD, x: tarpW / 2, z: 0, ry: Math.PI / 2 },
+    { w: tarpD, x: -tarpW / 2, z: 0, ry: -Math.PI / 2 },
+  ]
+  for (const s of skirts) {
+    const skirt = new THREE.Mesh(new THREE.PlaneGeometry(s.w, skirtH), tarpMat)
+    skirt.position.set(s.x, topY - skirtH / 2 + 0.12, s.z)
+    skirt.rotation.y = s.ry
+    skirt.rotation.x = -0.12 // 稍微外張，模擬垂墜感
+    g.add(skirt)
+  }
+
+  // 綁繩
+  const ropeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 })
+  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, tarpW + 0.3, 6), ropeMat)
+  rope.rotation.z = Math.PI / 2
+  rope.position.y = topY + 0.03
+  g.add(rope)
 
   if (hasWater) {
-    const water = new THREE.Mesh(new THREE.CircleGeometry(0.75, 16), makeWaterMaterial())
+    const water = new THREE.Mesh(new THREE.CircleGeometry(0.5, 16), makeWaterMaterial())
     water.rotation.x = -Math.PI / 2
-    water.position.y = 0.7
+    water.position.set(rand(-0.4, 0.4), topY + 0.015, rand(-0.3, 0.3))
     g.add(water)
     waterMeshes.push(water)
   }
@@ -913,8 +953,8 @@ export function createWorld(scene) {
   function place(spotList, count, hasWater, type, makeFn, posFn) {
     for (let i = 0; i < count && spotList.length > 0; i++) {
       const spot = spotList.pop()
-      const obj = makeFn(hasWater, waterMeshes)
       const p = posFn ? posFn(spot) : { x: spot.x, y: 0.2, z: spot.z }
+      const obj = makeFn(hasWater, waterMeshes, p.edgeLength)
       obj.position.set(p.x, p.y, p.z)
       obj.rotation.y = p.rotY !== undefined ? p.rotY : rand(0, Math.PI * 2)
       scene.add(obj)
@@ -954,25 +994,28 @@ export function createWorld(scene) {
     roofSpots.push(...shuffle(shortRoofs), ...tallRoofs) // tall 放在陣列尾端，pop() 會優先取到
   }
 
-  // 雨水槽要沿著屋頂邊緣（不是屋頂正中間），隨機挑一邊並沿著該邊緣對齊擺放
+  // 雨水槽要沿著屋頂邊緣（不是屋頂正中間），隨機挑一邊，長度與該邊等長並置中對齊
   function gutterPos(spot) {
     const inset = 0.35
+    const margin = 0.6 // 兩端留一點餘量，避免超出屋頂角落
     const edge = Math.floor(Math.random() * 4) // 0/1: 南北邊；2/3: 東西邊
     if (edge < 2) {
       const zSign = edge === 0 ? 1 : -1
       return {
-        x: spot.x + rand(-(spot.w / 2 - 2), spot.w / 2 - 2),
+        x: spot.x,
         y: spot.y,
         z: spot.z + zSign * (spot.d / 2 - inset),
         rotY: 0,
+        edgeLength: spot.w - margin,
       }
     }
     const xSign = edge === 2 ? 1 : -1
     return {
       x: spot.x + xSign * (spot.w / 2 - inset),
       y: spot.y,
-      z: spot.z + rand(-(spot.d / 2 - 2), spot.d / 2 - 2),
+      z: spot.z,
       rotY: Math.PI / 2,
+      edgeLength: spot.d - margin,
     }
   }
 
@@ -986,11 +1029,9 @@ export function createWorld(scene) {
   place(roofSpots, 3, false, 'roofGarden', makeRoofGarden, (s) => ({ x: s.x, y: s.y, z: s.z }))
 
   // 空地／工地：一塊空地能同時容納好幾個藏匿點，每塊空地產生數個候選位置
-  const lots = shuffle(lotSpots.flatMap((s) => [
-    { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) },
-    { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) },
-    { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) },
-  ]))
+  const lots = shuffle(lotSpots.flatMap((s) => Array.from({ length: 5 }, () => (
+    { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) }
+  ))))
   place(lots, 5, true, 'debris', makeDebris)
   place(lots, 3, false, 'debris', makeDebris)
 
@@ -1002,9 +1043,11 @@ export function createWorld(scene) {
   place(grounds, 6, true, 'container', makeContainer)
   place(grounds, 6, false, 'container', makeContainer)
 
-  // 空地不夠時，用街邊位置補足廢棄物目標
+  // 空地不夠時（隨機生成的城市空地數量偏少），用街邊位置補足
   const debrisPlaced = targets.filter((t) => t.type === 'debris').length
   if (debrisPlaced < 5) place(grounds, 5 - debrisPlaced, true, 'debris', makeDebris)
+  const tarpPlaced = targets.filter((t) => t.type === 'tarp').length
+  if (tarpPlaced < 4) place(grounds, 4 - tarpPlaced, true, 'tarp', makeTarpPile)
   const containerPlaced = targets.filter((t) => t.type === 'container').length
   if (containerPlaced < 6) {
     const extra = shuffle(roofSpots.slice())
