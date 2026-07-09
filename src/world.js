@@ -2,9 +2,12 @@ import * as THREE from 'three'
 
 // ---------- 常數 ----------
 export const TARGET_TYPES = {
-  tower:     { label: '空水塔積水',   points: 30 },
-  debris:    { label: '廢棄物積水',   points: 20 },
-  container: { label: '積水容器',     points: 10 },
+  tower:      { label: '空水塔積水',       points: 30 },
+  tarp:       { label: '屋頂帆布凹陷積水', points: 25 },
+  debris:     { label: '廢棄物積水',       points: 20 },
+  roofGarden: { label: '屋頂花園積水',     points: 20 },
+  gutter:     { label: '屋簷雨水槽積水',   points: 15 },
+  container:  { label: '積水容器',         points: 10 },
 }
 
 const GRID = 7          // 7x7 個街區
@@ -168,6 +171,120 @@ function makeContainer(hasWater, waterMeshes) {
       g.add(water)
       waterMeshes.push(water)
     }
+  }
+  return g
+}
+
+// 屋簷雨水槽：沿屋頂邊緣的排水溝，落葉堵塞後容易積水
+function makeGutter(hasWater, waterMeshes) {
+  const g = new THREE.Group()
+  const metal = new THREE.MeshStandardMaterial({ color: 0x8a8f94, roughness: 0.6, metalness: 0.5 })
+  const length = 3.2
+  const width = 0.45
+  const wallH = 0.22
+
+  const bottom = new THREE.Mesh(new THREE.BoxGeometry(length, 0.05, width), metal)
+  bottom.position.y = 0.05
+  g.add(bottom)
+
+  const wallGeo = new THREE.BoxGeometry(length, wallH, 0.05)
+  const wallFront = new THREE.Mesh(wallGeo, metal)
+  wallFront.position.set(0, wallH / 2 + 0.05, width / 2)
+  g.add(wallFront)
+  const wallBack = new THREE.Mesh(wallGeo, metal)
+  wallBack.position.set(0, wallH / 2 + 0.05, -width / 2)
+  g.add(wallBack)
+
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x6b7d3f, roughness: 0.95 })
+  for (let i = 0; i < 3; i++) {
+    const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.12, 6), leafMat)
+    leaf.rotation.x = -Math.PI / 2
+    leaf.position.set(rand(-length / 2 + 0.3, length / 2 - 0.3), 0.09, rand(-0.15, 0.15))
+    g.add(leaf)
+  }
+
+  if (hasWater) {
+    const water = new THREE.Mesh(new THREE.BoxGeometry(length - 0.1, 0.03, width - 0.1), makeWaterMaterial())
+    water.position.y = 0.14
+    g.add(water)
+    waterMeshes.push(water)
+  }
+  return g
+}
+
+// 屋頂花園：花盆綠意間藏著積水
+function makeRoofGarden(hasWater, waterMeshes) {
+  const g = new THREE.Group()
+  const potMat = new THREE.MeshStandardMaterial({ color: 0x8a6b4a, roughness: 0.9 })
+  const leafMats = [
+    new THREE.MeshStandardMaterial({ color: 0x4c8a3f, roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ color: 0x5a9c4a, roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ color: 0x3f7d3a, roughness: 0.95 }),
+  ]
+
+  const deck = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.9, 1.9, 0.12, 16),
+    new THREE.MeshStandardMaterial({ color: 0x9a9488, roughness: 0.9 })
+  )
+  deck.position.y = 0.06
+  g.add(deck)
+
+  const n = 4 + Math.floor(Math.random() * 3)
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + rand(-0.3, 0.3)
+    const r = rand(0.8, 1.6)
+    const px = Math.cos(a) * r
+    const pz = Math.sin(a) * r
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.35, 10), potMat)
+    pot.position.set(px, 0.3, pz)
+    g.add(pot)
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(rand(0.28, 0.4), 8, 6), pick(leafMats))
+    leaf.position.set(px, 0.62, pz)
+    leaf.scale.y = 0.8
+    g.add(leaf)
+  }
+
+  if (hasWater) {
+    const water = new THREE.Mesh(new THREE.CircleGeometry(1.1, 16), makeWaterMaterial())
+    water.rotation.x = -Math.PI / 2
+    water.position.set(rand(-0.3, 0.3), 0.13, rand(-0.3, 0.3))
+    g.add(water)
+    waterMeshes.push(water)
+  }
+  return g
+}
+
+// 屋頂帆布：蓋在雜物上的帆布中央凹陷積水
+function makeRoofTarp(hasWater, waterMeshes) {
+  const g = new THREE.Group()
+  const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.9 })
+  for (let i = 0; i < 3; i++) {
+    const h = rand(0.4, 0.7)
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(rand(0.6, 1), h, rand(0.6, 1)), crateMat)
+    crate.position.set(rand(-0.8, 0.8), h / 2, rand(-0.8, 0.8))
+    g.add(crate)
+  }
+
+  const tarpMat = new THREE.MeshStandardMaterial({
+    color: pick([0x2f6f8f, 0x3f7a4f, 0x6f6f3f]),
+    roughness: 0.8,
+    side: THREE.DoubleSide,
+  })
+  const tarp = new THREE.Mesh(new THREE.CircleGeometry(1.8, 20), tarpMat)
+  tarp.rotation.x = -Math.PI / 2
+  tarp.position.y = 0.75
+  g.add(tarp)
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.75, 0.08, 6, 20), tarpMat)
+  rim.rotation.x = Math.PI / 2
+  rim.position.y = 0.85
+  g.add(rim)
+
+  if (hasWater) {
+    const water = new THREE.Mesh(new THREE.CircleGeometry(0.75, 16), makeWaterMaterial())
+    water.rotation.x = -Math.PI / 2
+    water.position.y = 0.7
+    g.add(water)
+    waterMeshes.push(water)
   }
   return g
 }
@@ -404,20 +521,43 @@ export function createWorld(scene) {
         found: false,
         group: obj,
       }
-      const radius = type === 'tower' ? 2.4 : type === 'debris' ? 2.6 : 1.4
-      const yOff = type === 'tower' ? 3.4 : 0.6
+      const radius = type === 'tower' ? 2.4
+        : type === 'debris' ? 2.6
+        : type === 'gutter' ? 2.0
+        : type === 'roofGarden' ? 2.2
+        : type === 'tarp' ? 2.2
+        : 1.4
+      const yOff = type === 'tower' ? 3.4
+        : type === 'gutter' ? 0.2
+        : type === 'roofGarden' ? 0.6
+        : type === 'tarp' ? 0.5
+        : 0.6
       addInspectProxy(obj, radius, yOff, data, inspectables)
       if (hasWater) targets.push(data)
     }
   }
 
-  // 水塔放在較高的屋頂（增加「要飛上去看」的難度）
-  const tallRoofs = shuffle(roofSpots.filter((r) => r.y > 14))
-  const shortRoofs = shuffle(roofSpots.filter((r) => r.y <= 14))
-  const towerRoofs = tallRoofs.length >= 9 ? tallRoofs : tallRoofs.concat(shortRoofs)
+  // 水塔優先放在較高的屋頂（增加「要飛上去看」的難度），較低屋頂用於其他屋頂類型積水。
+  // 直接改寫 roofSpots 本身（而非用 filter 產生的複本），確保後面各類型屋頂積水
+  // 從同一個池子依序取用，不會重複用到同一棟屋頂。
+  {
+    const shortRoofs = roofSpots.filter((r) => r.y <= 14)
+    const tallRoofs = shuffle(roofSpots.filter((r) => r.y > 14))
+    roofSpots.length = 0
+    roofSpots.push(...shuffle(shortRoofs), ...tallRoofs) // tall 放在陣列尾端，pop() 會優先取到
+  }
 
-  place(towerRoofs, 5, true, 'tower', makeWaterTower, (s) => s.y)   // 目標
-  place(towerRoofs, 4, false, 'tower', makeWaterTower, (s) => s.y)  // 誘餌（有蓋）
+  place(roofSpots, 5, true, 'tower', makeWaterTower, (s) => s.y)   // 目標
+  place(roofSpots, 4, false, 'tower', makeWaterTower, (s) => s.y)  // 誘餌（有蓋）
+
+  place(roofSpots, 4, true, 'gutter', makeGutter, (s) => s.y)
+  place(roofSpots, 3, false, 'gutter', makeGutter, (s) => s.y)
+
+  place(roofSpots, 4, true, 'roofGarden', makeRoofGarden, (s) => s.y)
+  place(roofSpots, 3, false, 'roofGarden', makeRoofGarden, (s) => s.y)
+
+  place(roofSpots, 4, true, 'tarp', makeRoofTarp, (s) => s.y)
+  place(roofSpots, 3, false, 'tarp', makeRoofTarp, (s) => s.y)
 
   const lots = shuffle(lotSpots.map((s) => ({ x: s.x + rand(-7, 7), z: s.z + rand(-7, 7) })))
   place(lots, 5, true, 'debris', makeDebris)

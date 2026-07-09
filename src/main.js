@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { createWorld, makeFoundMarker, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
 
-const GAME_TIME = 60      // 秒
+const GAME_TIME = 120     // 秒
 const MARK_RANGE = 45     // 可標記的最大距離（公尺）
 const MARK_COOLDOWN = 0.35
 
@@ -221,10 +221,10 @@ function startNewRound() {
 }
 
 function rankFor(s) {
-  if (s >= 250) return '🏅 傳說巡檢無人機！台南市長頒獎表揚！'
-  if (s >= 180) return '🥇 金牌巡檢員：登革熱病媒蚊聞風喪膽'
-  if (s >= 120) return '🥈 銀牌巡檢員：眼力過人'
-  if (s >= 60) return '🥉 銅牌巡檢員：再接再厲'
+  if (s >= 450) return '🏅 傳說巡檢無人機！台南市長頒獎表揚！'
+  if (s >= 320) return '🥇 金牌巡檢員：登革熱病媒蚊聞風喪膽'
+  if (s >= 200) return '🥈 銀牌巡檢員：眼力過人'
+  if (s >= 100) return '🥉 銅牌巡檢員：再接再厲'
   return '📋 見習巡檢員：多注意屋頂與空地喔'
 }
 
