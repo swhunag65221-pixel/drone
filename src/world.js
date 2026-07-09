@@ -3,7 +3,7 @@ import * as THREE from 'three'
 // ---------- 常數 ----------
 export const TARGET_TYPES = {
   tower:      { label: '空水塔積水',       points: 30 },
-  tarp:       { label: '屋頂帆布凹陷積水', points: 25 },
+  tarp:       { label: '工地帆布積水',     points: 25 },
   debris:     { label: '廢棄物積水',       points: 20 },
   roofGarden: { label: '屋頂花園積水',     points: 20 },
   gutter:     { label: '屋簷雨水槽積水',   points: 15 },
@@ -277,8 +277,8 @@ function makeRoofGarden(hasWater, waterMeshes) {
   return g
 }
 
-// 屋頂帆布：蓋在雜物上的帆布中央凹陷積水
-function makeRoofTarp(hasWater, waterMeshes) {
+// 帆布蓋建材：空地／工地上，帆布蓋著建材堆，中央凹陷處積水
+function makeTarpPile(hasWater, waterMeshes) {
   const g = new THREE.Group()
   const crateMat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.9 })
   for (let i = 0; i < 3; i++) {
@@ -836,7 +836,7 @@ export function createWorld(scene) {
           box.expandByScalar(0.9) // 無人機半徑
           colliders.push(box)
 
-          roofSpots.push({ x: px, y: h + 0.2, z: pz })
+          roofSpots.push({ x: px, y: h + 0.2, z: pz, w, d })
 
           // 屋頂雜物：冷氣機
           if (Math.random() < 0.5) {
@@ -910,12 +910,13 @@ export function createWorld(scene) {
   // ---------- 佈置目標與誘餌 ----------
   const shuffle = (arr) => arr.sort(() => Math.random() - 0.5)
 
-  function place(spotList, count, hasWater, type, makeFn, yFn) {
+  function place(spotList, count, hasWater, type, makeFn, posFn) {
     for (let i = 0; i < count && spotList.length > 0; i++) {
       const spot = spotList.pop()
       const obj = makeFn(hasWater, waterMeshes)
-      obj.position.set(spot.x, yFn ? yFn(spot) : 0.2, spot.z)
-      obj.rotation.y = rand(0, Math.PI * 2)
+      const p = posFn ? posFn(spot) : { x: spot.x, y: 0.2, z: spot.z }
+      obj.position.set(p.x, p.y, p.z)
+      obj.rotation.y = p.rotY !== undefined ? p.rotY : rand(0, Math.PI * 2)
       scene.add(obj)
 
       const info = TARGET_TYPES[type]
@@ -953,21 +954,49 @@ export function createWorld(scene) {
     roofSpots.push(...shuffle(shortRoofs), ...tallRoofs) // tall 放在陣列尾端，pop() 會優先取到
   }
 
-  place(roofSpots, 5, true, 'tower', makeWaterTower, (s) => s.y)   // 目標
-  place(roofSpots, 4, false, 'tower', makeWaterTower, (s) => s.y)  // 誘餌（有蓋）
+  // 雨水槽要沿著屋頂邊緣（不是屋頂正中間），隨機挑一邊並沿著該邊緣對齊擺放
+  function gutterPos(spot) {
+    const inset = 0.35
+    const edge = Math.floor(Math.random() * 4) // 0/1: 南北邊；2/3: 東西邊
+    if (edge < 2) {
+      const zSign = edge === 0 ? 1 : -1
+      return {
+        x: spot.x + rand(-(spot.w / 2 - 2), spot.w / 2 - 2),
+        y: spot.y,
+        z: spot.z + zSign * (spot.d / 2 - inset),
+        rotY: 0,
+      }
+    }
+    const xSign = edge === 2 ? 1 : -1
+    return {
+      x: spot.x + xSign * (spot.w / 2 - inset),
+      y: spot.y,
+      z: spot.z + rand(-(spot.d / 2 - 2), spot.d / 2 - 2),
+      rotY: Math.PI / 2,
+    }
+  }
 
-  place(roofSpots, 4, true, 'gutter', makeGutter, (s) => s.y)
-  place(roofSpots, 3, false, 'gutter', makeGutter, (s) => s.y)
+  place(roofSpots, 5, true, 'tower', makeWaterTower, (s) => ({ x: s.x, y: s.y, z: s.z }))   // 目標
+  place(roofSpots, 4, false, 'tower', makeWaterTower, (s) => ({ x: s.x, y: s.y, z: s.z }))  // 誘餌（有蓋）
 
-  place(roofSpots, 4, true, 'roofGarden', makeRoofGarden, (s) => s.y)
-  place(roofSpots, 3, false, 'roofGarden', makeRoofGarden, (s) => s.y)
+  place(roofSpots, 4, true, 'gutter', makeGutter, gutterPos)
+  place(roofSpots, 3, false, 'gutter', makeGutter, gutterPos)
 
-  place(roofSpots, 4, true, 'tarp', makeRoofTarp, (s) => s.y)
-  place(roofSpots, 3, false, 'tarp', makeRoofTarp, (s) => s.y)
+  place(roofSpots, 4, true, 'roofGarden', makeRoofGarden, (s) => ({ x: s.x, y: s.y, z: s.z }))
+  place(roofSpots, 3, false, 'roofGarden', makeRoofGarden, (s) => ({ x: s.x, y: s.y, z: s.z }))
 
-  const lots = shuffle(lotSpots.map((s) => ({ x: s.x + rand(-7, 7), z: s.z + rand(-7, 7) })))
+  // 空地／工地：一塊空地能同時容納好幾個藏匿點，每塊空地產生數個候選位置
+  const lots = shuffle(lotSpots.flatMap((s) => [
+    { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) },
+    { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) },
+    { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) },
+  ]))
   place(lots, 5, true, 'debris', makeDebris)
   place(lots, 3, false, 'debris', makeDebris)
+
+  // 帆布蓋建材：在地面上的空地／工地，而非屋頂
+  place(lots, 4, true, 'tarp', makeTarpPile)
+  place(lots, 3, false, 'tarp', makeTarpPile)
 
   const grounds = shuffle(groundSpots)
   place(grounds, 6, true, 'container', makeContainer)
@@ -978,8 +1007,8 @@ export function createWorld(scene) {
   if (debrisPlaced < 5) place(grounds, 5 - debrisPlaced, true, 'debris', makeDebris)
   const containerPlaced = targets.filter((t) => t.type === 'container').length
   if (containerPlaced < 6) {
-    const extra = shuffle(roofSpots.slice()).map((r) => ({ x: r.x, z: r.z, y: r.y }))
-    place(extra, 6 - containerPlaced, true, 'container', makeContainer, (s) => s.y)
+    const extra = shuffle(roofSpots.slice())
+    place(extra, 6 - containerPlaced, true, 'container', makeContainer, (s) => ({ x: s.x, y: s.y, z: s.z }))
   }
 
   return { colliders, inspectables, targets, waterMeshes, spawnPoint }
