@@ -34,7 +34,29 @@ sun.shadow.camera.bottom = -160
 sun.shadow.camera.far = 500
 scene.add(sun)
 
-const { colliders, inspectables, targets, waterMeshes } = createWorld(scene)
+const worldGroup = new THREE.Group()
+scene.add(worldGroup)
+
+let colliders, inspectables, targets, waterMeshes
+
+function disposeWorld() {
+  worldGroup.traverse((obj) => {
+    obj.geometry?.dispose()
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
+    materials.forEach((m) => {
+      m?.map?.dispose()
+      m?.dispose()
+    })
+  })
+  worldGroup.clear()
+}
+
+function buildWorld() {
+  disposeWorld()
+  ;({ colliders, inspectables, targets, waterMeshes } = createWorld(worldGroup))
+}
+
+buildWorld()
 const drone = new DroneController(camera)
 drone.reset(new THREE.Vector3(0, 18, 30))
 
@@ -95,7 +117,7 @@ ui.resumeBtn.addEventListener('click', () => {
   lockPointer()
 })
 
-ui.restartBtn.addEventListener('click', () => location.reload())
+ui.restartBtn.addEventListener('click', () => startNewRound())
 
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement
@@ -141,7 +163,7 @@ window.addEventListener('mousedown', (e) => {
     addFeed(`✔ 發現${data.label}！ +${data.points} 分`)
     const marker = makeFoundMarker(true)
     marker.position.copy(worldPos)
-    scene.add(marker)
+    worldGroup.add(marker)
     if (foundCount === targets.length) {
       const bonus = Math.floor(timeLeft * 2)
       score += bonus
@@ -153,7 +175,7 @@ window.addEventListener('mousedown', (e) => {
     addFeed(`✘ 誤報！這裡沒有積水 −5 分`, true)
     const marker = makeFoundMarker(false)
     marker.position.copy(worldPos)
-    scene.add(marker)
+    worldGroup.add(marker)
   }
   updateHUD()
 })
@@ -178,6 +200,24 @@ function endGame() {
   lines.push(`合計發現積水：${foundCount} / ${targets.length} 處`)
   ui.breakdown.innerHTML = lines.join('<br>')
   ui.endOverlay.classList.remove('hidden')
+}
+
+function startNewRound() {
+  buildWorld()
+  drone.reset(new THREE.Vector3(0, 18, 30))
+
+  state = 'start'
+  timeLeft = GAME_TIME
+  score = 0
+  foundCount = 0
+  markCooldown = 0
+
+  ui.feed.innerHTML = ''
+  ui.endOverlay.classList.add('hidden')
+  ui.pauseOverlay.classList.add('hidden')
+  ui.hud.classList.add('hidden')
+  ui.startOverlay.classList.remove('hidden')
+  updateHUD()
 }
 
 function rankFor(s) {
