@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { createWorld, makeFoundMarker, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
 
-const GAME_TIME = 60      // 秒
+const GAME_TIME = 120     // 秒
 const MARK_RANGE = 45     // 可標記的最大距離（公尺）
 const MARK_COOLDOWN = 0.35
 
@@ -34,9 +34,31 @@ sun.shadow.camera.bottom = -160
 sun.shadow.camera.far = 500
 scene.add(sun)
 
-const { colliders, inspectables, targets, waterMeshes } = createWorld(scene)
+const worldGroup = new THREE.Group()
+scene.add(worldGroup)
+
+let colliders, inspectables, targets, waterMeshes, spawnPoint
+
+function disposeWorld() {
+  worldGroup.traverse((obj) => {
+    obj.geometry?.dispose()
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material]
+    materials.forEach((m) => {
+      m?.map?.dispose()
+      m?.dispose()
+    })
+  })
+  worldGroup.clear()
+}
+
+function buildWorld() {
+  disposeWorld()
+  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint } = createWorld(worldGroup))
+}
+
+buildWorld()
 const drone = new DroneController(camera)
-drone.reset(new THREE.Vector3(0, 18, 30))
+drone.reset(spawnPoint)
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
@@ -95,7 +117,7 @@ ui.resumeBtn.addEventListener('click', () => {
   lockPointer()
 })
 
-ui.restartBtn.addEventListener('click', () => location.reload())
+ui.restartBtn.addEventListener('click', () => startNewRound())
 
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement
@@ -141,7 +163,7 @@ window.addEventListener('mousedown', (e) => {
     addFeed(`✔ 發現${data.label}！ +${data.points} 分`)
     const marker = makeFoundMarker(true)
     marker.position.copy(worldPos)
-    scene.add(marker)
+    worldGroup.add(marker)
     if (foundCount === targets.length) {
       const bonus = Math.floor(timeLeft * 2)
       score += bonus
@@ -153,7 +175,7 @@ window.addEventListener('mousedown', (e) => {
     addFeed(`✘ 誤報！這裡沒有積水 −5 分`, true)
     const marker = makeFoundMarker(false)
     marker.position.copy(worldPos)
-    scene.add(marker)
+    worldGroup.add(marker)
   }
   updateHUD()
 })
@@ -180,11 +202,29 @@ function endGame() {
   ui.endOverlay.classList.remove('hidden')
 }
 
+function startNewRound() {
+  buildWorld()
+  drone.reset(spawnPoint)
+
+  state = 'start'
+  timeLeft = GAME_TIME
+  score = 0
+  foundCount = 0
+  markCooldown = 0
+
+  ui.feed.innerHTML = ''
+  ui.endOverlay.classList.add('hidden')
+  ui.pauseOverlay.classList.add('hidden')
+  ui.hud.classList.add('hidden')
+  ui.startOverlay.classList.remove('hidden')
+  updateHUD()
+}
+
 function rankFor(s) {
-  if (s >= 250) return '🏅 傳說巡檢無人機！台南市長頒獎表揚！'
-  if (s >= 180) return '🥇 金牌巡檢員：登革熱病媒蚊聞風喪膽'
-  if (s >= 120) return '🥈 銀牌巡檢員：眼力過人'
-  if (s >= 60) return '🥉 銅牌巡檢員：再接再厲'
+  if (s >= 450) return '🏅 傳說巡檢無人機！台南市長頒獎表揚！'
+  if (s >= 320) return '🥇 金牌巡檢員：登革熱病媒蚊聞風喪膽'
+  if (s >= 200) return '🥈 銀牌巡檢員：眼力過人'
+  if (s >= 100) return '🥉 銅牌巡檢員：再接再厲'
   return '📋 見習巡檢員：多注意屋頂與空地喔'
 }
 
@@ -193,7 +233,8 @@ const clock = new THREE.Clock()
 
 function animate() {
   requestAnimationFrame(animate)
-  const dt = Math.min(clock.getDelta(), 0.05)
+  const rawDt = clock.getDelta()
+  const dt = Math.min(rawDt, 0.05) // physics 用：低幀率時鉗制，避免無人機穿牆
   const t = clock.elapsedTime
 
   // 水面閃爍（找目標的視覺線索）
@@ -202,8 +243,9 @@ function animate() {
   })
 
   if (state === 'playing') {
-    timeLeft -= dt
-    markCooldown = Math.max(0, markCooldown - dt)
+    // 倒數計時用真實經過時間，避免低幀率時「時間變慢」，確保 60 秒任務時限對應真實時間
+    timeLeft -= rawDt
+    markCooldown = Math.max(0, markCooldown - rawDt)
     if (timeLeft <= 0) {
       timeLeft = 0
       endGame()

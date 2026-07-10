@@ -20,6 +20,9 @@ export class DroneController {
       if (['Space', 'ShiftLeft', 'ShiftRight'].includes(e.code)) e.preventDefault()
     })
     window.addEventListener('keyup', (e) => this.keys.delete(e.code))
+    // 視窗失去焦點時（例如切換視窗、系統對話框彈出）可能收不到 keyup，
+    // 清空按鍵避免「卡鍵」導致鬆手後仍持續移動或看似沒有反應。
+    window.addEventListener('blur', () => this.keys.clear())
 
     document.addEventListener('mousemove', (e) => {
       if (!this.enabled) return
