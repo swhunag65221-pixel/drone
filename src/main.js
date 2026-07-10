@@ -82,7 +82,7 @@ const ui = {
 // 用實際的遊戲 3D 模型渲染縮圖，玩家看到的就是場景中的真實外觀
 const INTRO_CARDS = [
   { type: 'tower', hint: '不鏽鋼水塔沒有頂蓋、看得到水面反光的才是目標；有錐形蓋的是誘餌。', where: '大樓屋頂（要飛到上方看）' },
-  { type: 'tarp', hint: '藍白條紋帆布蓋著建材堆，帆布凹陷處積水。', where: '空地／工地的地面' },
+  { type: 'tarp', hint: '藍白條紋帆布蓋著建材堆，帆布凹陷處積水。', where: '工地圍籬內的地面' },
   { type: 'debris', hint: '廢棄雜物堆旁邊的一灘積水。', where: '有圍牆的空地' },
   { type: 'roofGarden', hint: '屋頂花園的花盆之間藏著一灘積水。', where: '大樓屋頂' },
   { type: 'gutter', hint: '屋頂邊緣的長條排水槽，落葉堵塞後積水。', where: '透天厝屋頂的四邊' },
