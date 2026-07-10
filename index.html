@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>台南無人機積水巡檢隊</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚁</text></svg>" />
+  <script type="module" crossorigin src="./assets/index-Bw9QMGAa.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Cst5GCvt.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- 遊戲中 HUD -->
+  <div id="hud" class="hidden">
+    <div id="topbar">
+      <div class="stat"><span class="stat-label">剩餘時間</span><span id="timer">120.0</span></div>
+      <div class="stat"><span class="stat-label">分數</span><span id="score">0</span></div>
+      <div class="stat"><span class="stat-label">發現積水</span><span id="found">0 / 0</span></div>
+    </div>
+    <div id="crosshair"></div>
+    <div id="hint" class="hidden">按 <b>左鍵</b> 標記可疑積水處</div>
+    <div id="feed"></div>
+    <div id="alt">高度 0 m</div>
+  </div>
+
+  <!-- 開始畫面 -->
+  <div id="startOverlay" class="overlay">
+    <div class="panel">
+      <h1>🚁 台南無人機積水巡檢隊</h1>
+      <p class="sub">登革熱防治任務：操作無人機，在 <b>2 分鐘</b>內找出台南市區中人力難以發現的隱藏積水處！</p>
+      <div class="columns">
+        <div class="col">
+          <h2>🎯 巡檢目標</h2>
+          <ul class="legend">
+            <li><span class="pts p30">+30</span> 屋頂空水塔積水（要從上方才看得到！）</li>
+            <li><span class="pts p25">+25</span> 工地帆布積水（空地建材蓋帆布，凹陷處積水）</li>
+            <li><span class="pts p20">+20</span> 空地廢棄物積水</li>
+            <li><span class="pts p20">+20</span> 屋頂花園積水（花盆綠意間藏著積水）</li>
+            <li><span class="pts p15">+15</span> 屋簷雨水槽積水（落葉堵塞排水口）</li>
+            <li><span class="pts p10">+10</span> 巷弄積水容器（水桶、水盆、輪胎）</li>
+            <li><span class="pts pneg">−5</span> 誤報（標記到沒有積水的地方）</li>
+          </ul>
+        </div>
+        <div class="col">
+          <h2>🕹️ 操作方式</h2>
+          <ul class="legend">
+            <li><b>滑鼠</b>　控制視角方向</li>
+            <li><b>↑ ↓ ← →</b>　前後左右飛行（或 W A S D）</li>
+            <li><b>空白鍵 / Shift</b>　上升 / 下降</li>
+            <li><b>滑鼠左鍵</b>　用準星標記積水處</li>
+            <li><b>Esc</b>　暫停</li>
+          </ul>
+        </div>
+      </div>
+      <button id="startBtn">點擊起飛，開始任務！</button>
+      <p class="tip">小提示：積水表面會反光閃爍，仔細觀察屋頂、空地與巷弄角落。若按 WASD 沒反應，請改用方向鍵，或將輸入法切換為英文。</p>
+    </div>
+  </div>
+
+  <!-- 暫停畫面 -->
+  <div id="pauseOverlay" class="overlay hidden">
+    <div class="panel small">
+      <h1>⏸️ 任務暫停</h1>
+      <button id="resumeBtn">點擊繼續飛行</button>
+    </div>
+  </div>
+
+  <!-- 結束畫面 -->
+  <div id="endOverlay" class="overlay hidden">
+    <div class="panel">
+      <h1>⏱️ 任務結束！</h1>
+      <div id="finalScore"></div>
+      <div id="rank"></div>
+      <div id="breakdown"></div>
+      <button id="restartBtn">再巡檢一次</button>
+    </div>
+  </div>
+
+</body>
+</html>
