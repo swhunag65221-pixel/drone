@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 // ---------- 常數 ----------
 export const TARGET_TYPES = {
@@ -83,6 +84,67 @@ function makeVerticalSignTexture(text) {
   chars.forEach((ch, i) => {
     g.fillText(ch, 32, 8 + lineH * (i + 0.5))
   })
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 透天厝外牆材質：近白底色（由 material.color 染成瓷磚色調），
+// 畫上窗戶＋鐵窗直條＋陽台橫帶＋一樓鐵捲門，是台灣街屋立面的核心元素
+function makeTownhouseTexture() {
+  const c = document.createElement('canvas')
+  c.width = 96; c.height = 160
+  const g = c.getContext('2d')
+  g.fillStyle = '#f2eee6'
+  g.fillRect(0, 0, 96, 160)
+
+  // 瓷磚縫隙
+  g.strokeStyle = 'rgba(0,0,0,0.05)'
+  for (let y = 0; y <= 160; y += 8) {
+    g.beginPath(); g.moveTo(0, y); g.lineTo(96, y); g.stroke()
+  }
+  for (let x = 0; x <= 96; x += 8) {
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 160); g.stroke()
+  }
+
+  // 窗戶（2 欄 × 4 層樓）＋鐵窗直條＋陽台橫帶
+  for (let row = 0; row < 4; row++) {
+    const wy = 12 + row * 32
+    for (let col = 0; col < 2; col++) {
+      const wx = 14 + col * 44
+      g.fillStyle = Math.random() < 0.25 ? '#ffe2a6' : '#332e28'
+      g.fillRect(wx, wy, 24, 18)
+      g.strokeStyle = 'rgba(190,195,200,0.8)'
+      for (let b = wx + 4; b < wx + 24; b += 5) {
+        g.beginPath(); g.moveTo(b, wy); g.lineTo(b, wy + 18); g.stroke()
+      }
+    }
+    g.fillStyle = 'rgba(120,110,100,0.35)'
+    g.fillRect(6, wy + 20, 84, 4)
+  }
+
+  // 一樓鐵捲門
+  g.fillStyle = '#6a625a'
+  g.fillRect(8, 138, 80, 20)
+  g.strokeStyle = 'rgba(0,0,0,0.25)'
+  for (let y = 141; y < 158; y += 3) {
+    g.beginPath(); g.moveTo(8, y); g.lineTo(88, y); g.stroke()
+  }
+
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 行人穿越道（斑馬線）材質
+function makeCrosswalkTexture() {
+  const c = document.createElement('canvas')
+  c.width = 32; c.height = 64
+  const g = c.getContext('2d')
+  g.fillStyle = 'rgba(238,238,230,0.85)'
+  for (let y = 2; y < 64; y += 16) {
+    g.fillRect(0, y, 32, 8)
+  }
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   return t
@@ -539,15 +601,16 @@ function makeTempleBuilding(w, d) {
 }
 
 // 騎樓：低樓建築前方外推的遮簷走廊，柱列造型是台灣街屋代表意象。
+// dir 決定騎樓朝向哪一側街道（+1 或 -1）。
 // 回傳騎樓下方的座標，可作為容器積水的新藏匿點（有遮蔽、從空中看不到）。
-function addArcade(scene, px, pz, w, d) {
+function addArcade(scene, px, pz, w, d, dir = 1) {
   const roofH = 3.6
   const depth = 2.0
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x6b5842, roughness: 0.85 })
   const pillarMat = new THREE.MeshStandardMaterial({ color: 0xc9a876, roughness: 0.8 })
 
   const roof = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, depth), roofMat)
-  roof.position.set(px, roofH, pz + d / 2 + depth / 2)
+  roof.position.set(px, roofH, pz + dir * (d / 2 + depth / 2))
   roof.castShadow = true
   scene.add(roof)
 
@@ -555,7 +618,7 @@ function addArcade(scene, px, pz, w, d) {
   for (let i = 0; i < pillarCount; i++) {
     const ppx = px - w / 2 + (i + 0.5) * (w / pillarCount)
     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, roofH, 8), pillarMat)
-    pillar.position.set(ppx, roofH / 2, pz + d / 2 + depth - 0.2)
+    pillar.position.set(ppx, roofH / 2, pz + dir * (d / 2 + depth - 0.2))
     scene.add(pillar)
   }
 
@@ -568,12 +631,91 @@ function addArcade(scene, px, pz, w, d) {
     for (let i = 0; i < n; i++) {
       const lx = px - w / 3 + (i / (n - 1)) * (w * 2 / 3)
       const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), lanternMat)
-      lantern.position.set(lx, roofH - 0.35, pz + d / 2 + depth - 0.3)
+      lantern.position.set(lx, roofH - 0.35, pz + dir * (d / 2 + depth - 0.3))
       scene.add(lantern)
     }
   }
 
-  return { x: px, z: pz + d / 2 + depth * 0.6 }
+  return { x: px, z: pz + dir * (d / 2 + depth * 0.6) }
+}
+
+// 連棟透天厝：台灣城市街景的主體。一排 3 戶相連的窄面寬街屋，
+// 各戶樓層數與外牆色略異；屋頂約半數有鐵皮加蓋（無人機空拍最經典的台灣屋頂樣貌），
+// 其餘為女兒牆平屋頂（可作為屋頂積水目標的藏匿點），部分有樓梯間小屋。
+function addRowhouseStrip(scene, colliders, roofSpots, groundSpots, px, pz, sub, facing, caches) {
+  const n = 3
+  const W = sub * 0.88
+  const d = sub * 0.72
+  const w = W / n
+
+  for (let i = 0; i < n; i++) {
+    const hx = px - W / 2 + w * (i + 0.5)
+    const floors = 2 + Math.floor(Math.random() * 4) // 2~5 樓
+    const h = floors * 3 * rand(0.95, 1.05)
+
+    const house = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), pick(caches.facadeMats))
+    house.position.set(hx, h / 2 + 0.2, pz)
+    house.castShadow = true
+    house.receiveShadow = true
+    scene.add(house)
+
+    const box = new THREE.Box3().setFromObject(house)
+    box.expandByScalar(0.9)
+    colliders.push(box)
+
+    const roofY = h + 0.2
+    if (Math.random() < 0.5) {
+      // 鐵皮加蓋：小房間＋微斜鐵皮浪板
+      const mat = pick(caches.metalMats)
+      const room = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 2.0, d * 0.9), mat)
+      room.position.set(hx, roofY + 1.0, pz)
+      scene.add(room)
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(w * 1.04, 0.08, d * 1.1), mat)
+      plate.position.set(hx, roofY + 2.15, pz)
+      plate.rotation.x = 0.09 * (Math.random() < 0.5 ? 1 : -1)
+      plate.castShadow = true
+      scene.add(plate)
+    } else {
+      // 女兒牆（四邊合併成單一網格，控制繪製呼叫數）
+      const t = 0.15, ph = 0.55
+      const rimGeos = [
+        new THREE.BoxGeometry(w, ph, t).translate(0, 0, (d - t) / 2),
+        new THREE.BoxGeometry(w, ph, t).translate(0, 0, -(d - t) / 2),
+        new THREE.BoxGeometry(t, ph, d - 2 * t).translate((w - t) / 2, 0, 0),
+        new THREE.BoxGeometry(t, ph, d - 2 * t).translate(-(w - t) / 2, 0, 0),
+      ]
+      const rim = new THREE.Mesh(mergeGeometries(rimGeos), caches.parapetMat)
+      rim.position.set(hx, roofY + ph / 2, pz)
+      scene.add(rim)
+
+      // 樓梯間小屋
+      if (Math.random() < 0.4) {
+        const stair = new THREE.Mesh(caches.stairGeo, caches.stairMat)
+        stair.position.set(
+          hx + (w / 2 - 1.1) * (Math.random() < 0.5 ? 1 : -1),
+          roofY + 0.95,
+          pz - facing * (d / 2 - 1.3)
+        )
+        scene.add(stair)
+      }
+
+      roofSpots.push({ x: hx, y: roofY, z: pz, w: w - 0.8, d: d - 0.8 })
+    }
+
+    // 店家招牌（共用少量材質，重複使用）
+    if (Math.random() < 0.6) {
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.9, 0.9), pick(caches.signMats))
+      sign.position.set(hx, 4.4, pz + facing * (d / 2 + 0.06))
+      if (facing < 0) sign.rotation.y = Math.PI
+      scene.add(sign)
+    }
+  }
+
+  // 整排騎樓
+  if (Math.random() < 0.45) {
+    const spot = addArcade(scene, px, pz, W, d, facing)
+    if (Math.random() < 0.5) groundSpots.push(spot)
+  }
 }
 
 // 運河小船：純造景
@@ -704,6 +846,25 @@ export function createWorld(scene) {
   const waterMeshes = []    // 需要閃爍動畫的水面
 
   const windowTex = makeWindowTexture()
+
+  // 透天厝共用材質快取：貼圖與材質全城共用，控制記憶體與繪製成本
+  const facadeTextures = [makeTownhouseTexture(), makeTownhouseTexture()]
+  const facadeTints = [0xdfe8dc, 0xf0e6d8, 0xe8d5cc, 0xd9dde0, 0xe6dfc9, 0xcfd8d2]
+  const caches = {
+    facadeMats: facadeTints.flatMap((tint) =>
+      facadeTextures.map((tex) => new THREE.MeshStandardMaterial({ map: tex, color: tint, roughness: 0.9 }))
+    ),
+    metalMats: [
+      new THREE.MeshStandardMaterial({ color: 0xb8bcc0, roughness: 0.45, metalness: 0.65 }), // 銀灰鐵皮
+      new THREE.MeshStandardMaterial({ color: 0x8a4a30, roughness: 0.6, metalness: 0.35 }),  // 鏽紅
+      new THREE.MeshStandardMaterial({ color: 0x3a5f46, roughness: 0.55, metalness: 0.4 }),  // 墨綠
+      new THREE.MeshStandardMaterial({ color: 0x3a5a7a, roughness: 0.55, metalness: 0.4 }),  // 藍
+    ],
+    parapetMat: new THREE.MeshStandardMaterial({ color: 0xcfc8bb, roughness: 0.9 }),
+    stairMat: new THREE.MeshStandardMaterial({ color: 0xbfb6a6, roughness: 0.9 }),
+    stairGeo: new THREE.BoxGeometry(1.6, 1.9, 1.9),
+    signMats: SIGN_TEXTS.map((t) => new THREE.MeshBasicMaterial({ map: makeSignTexture(t) })),
+  }
 
   // 地面（柏油）
   const ground = new THREE.Mesh(
@@ -841,6 +1002,7 @@ export function createWorld(scene) {
 
           const w = rand(sub * 0.62, sub * 0.85)
           const d = rand(sub * 0.62, sub * 0.85)
+          const facing = sz === 0 ? -1 : 1 // 面向所在側的街道
 
           // 一部分低樓改成廟宇風格建築，增添台南街景的辨識度
           if (Math.random() < 0.12) {
@@ -854,7 +1016,14 @@ export function createWorld(scene) {
             continue // 廟宇屋頂造型特殊，不納入水塔/雜物屋頂點位
           }
 
-          const h = rand(8, 34)
+          // 大多數街區是連棟透天厝：壓低天際線，貼近台南真實的城市樣貌
+          if (Math.random() < 0.62) {
+            addRowhouseStrip(scene, colliders, roofSpots, groundSpots, px, pz, sub, facing, caches)
+            continue
+          }
+
+          // 少數商業大樓（高度也壓低，台南市區高樓不多）
+          const h = rand(10, 26)
 
           const sideMat = new THREE.MeshStandardMaterial({ map: windowTex.clone(), roughness: 0.85 })
           sideMat.map.repeat.set(Math.max(1, Math.round(w / 6)), Math.max(1, Math.round(h / 6)))
@@ -894,7 +1063,8 @@ export function createWorld(scene) {
               new THREE.PlaneGeometry(5, 1.25),
               new THREE.MeshBasicMaterial({ map: makeSignTexture(SIGN_TEXTS[signIdx++]) })
             )
-            sign.position.set(px, 4.2, pz + d / 2 + 0.06)
+            sign.position.set(px, 4.2, pz + facing * (d / 2 + 0.06))
+            if (facing < 0) sign.rotation.y = Math.PI
             scene.add(sign)
           }
 
@@ -905,13 +1075,13 @@ export function createWorld(scene) {
               new THREE.MeshBasicMaterial({ map: makeVerticalSignTexture(pick(SIGN_TEXTS)), side: THREE.DoubleSide })
             )
             vsign.rotation.y = Math.PI / 2
-            vsign.position.set(px + w / 2 + 0.55, 4.0, pz + d / 2 - 1.2)
+            vsign.position.set(px + w / 2 + 0.55, 4.0, pz + facing * (d / 2 - 1.2))
             scene.add(vsign)
           }
 
           // 騎樓：外推遮簷走廊，底下也可能藏著積水容器
           if (h < 16 && Math.random() < 0.4) {
-            const spot = addArcade(scene, px, pz, w, d)
+            const spot = addArcade(scene, px, pz, w, d, facing)
             if (Math.random() < 0.5) groundSpots.push(spot)
           }
         }
@@ -947,6 +1117,61 @@ export function createWorld(scene) {
     }
   }
 
+  // ---------- 電線桿與電線（台灣街景的招牌元素）----------
+  {
+    const poleGeo = new THREE.CylinderGeometry(0.09, 0.13, 7.6, 6)
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x5a5450, roughness: 0.9 })
+    const crossGeo = new THREE.BoxGeometry(1.4, 0.08, 0.08)
+    const wirePts = []
+    for (let j = 1; j < GRID; j++) {
+      if (j === CANAL_ROW) continue // 運河那排沒有街道
+      const zStreet = -HALF + j * PITCH - STREET / 2
+      const poleZ = zStreet + STREET / 2 - 0.7
+      let prevX = null
+      for (let i2 = 0; i2 < GRID; i2++) {
+        const x2 = -HALF + i2 * PITCH + BLOCK / 2
+        const pole = new THREE.Mesh(poleGeo, poleMat)
+        pole.position.set(x2, 3.8, poleZ)
+        scene.add(pole)
+        const cross = new THREE.Mesh(crossGeo, poleMat)
+        cross.position.set(x2, 7.0, poleZ)
+        scene.add(cross)
+        if (prevX !== null) {
+          for (const wy of [7.05, 6.65]) {
+            wirePts.push(prevX, wy, poleZ, x2, wy, poleZ)
+          }
+        }
+        prevX = x2
+      }
+    }
+    const wireGeo = new THREE.BufferGeometry()
+    wireGeo.setAttribute('position', new THREE.Float32BufferAttribute(wirePts, 3))
+    scene.add(new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0x2a2a2a })))
+  }
+
+  // ---------- 行人穿越道（斑馬線）----------
+  {
+    const cwMat = new THREE.MeshBasicMaterial({ map: makeCrosswalkTexture(), transparent: true })
+    const cwGeo = new THREE.PlaneGeometry(3.2, 8.4)
+    for (let i = 1; i < GRID; i++) {
+      for (let j = 1; j < GRID; j++) {
+        if (j === CANAL_ROW) continue
+        const ix = -HALF + i * PITCH - STREET / 2
+        const iz = -HALF + j * PITCH - STREET / 2
+        // 橫越東西向街道
+        const cw1 = new THREE.Mesh(cwGeo, cwMat)
+        cw1.rotation.x = -Math.PI / 2
+        cw1.position.set(ix - STREET / 2 - 2.2, 0.03, iz)
+        scene.add(cw1)
+        // 橫越南北向街道
+        const cw2 = new THREE.Mesh(cwGeo, cwMat)
+        cw2.rotation.set(-Math.PI / 2, 0, Math.PI / 2)
+        cw2.position.set(ix, 0.03, iz - STREET / 2 - 2.2)
+        scene.add(cw2)
+      }
+    }
+  }
+
   // ---------- 佈置目標與誘餌 ----------
   const shuffle = (arr) => arr.sort(() => Math.random() - 0.5)
 
@@ -968,7 +1193,9 @@ export function createWorld(scene) {
         found: false,
         group: obj,
       }
-      const radius = type === 'tower' ? 2.4
+      // 雨水槽等長條形目標的判定半徑隨長度放大，確保沿著整段都能點擊
+      const radius = p.proxyRadius !== undefined ? p.proxyRadius
+        : type === 'tower' ? 2.4
         : type === 'debris' ? 2.6
         : type === 'gutter' ? 2.0
         : type === 'roofGarden' ? 2.2
@@ -984,14 +1211,14 @@ export function createWorld(scene) {
     }
   }
 
-  // 水塔優先放在較高的屋頂（增加「要飛上去看」的難度），較低屋頂用於其他屋頂類型積水。
-  // 直接改寫 roofSpots 本身（而非用 filter 產生的複本），確保後面各類型屋頂積水
-  // 從同一個池子依序取用，不會重複用到同一棟屋頂。
+  // 屋頂分成兩池（不重疊，避免同一棟屋頂放兩個目標）：
+  // 大屋頂（商業樓）放水塔與屋頂花園；小屋頂（透天厝）放雨水槽——貼近真實分佈。
+  // 水塔優先放較高的屋頂（增加「要飛上去看」的難度），tall 放陣列尾端讓 pop() 先取。
+  const bigRoofs = []
+  const smallRoofs = shuffle(roofSpots.filter((r) => r.w < 6 || r.d < 6))
   {
-    const shortRoofs = roofSpots.filter((r) => r.y <= 14)
-    const tallRoofs = shuffle(roofSpots.filter((r) => r.y > 14))
-    roofSpots.length = 0
-    roofSpots.push(...shuffle(shortRoofs), ...tallRoofs) // tall 放在陣列尾端，pop() 會優先取到
+    const bigs = roofSpots.filter((r) => r.w >= 6 && r.d >= 6)
+    bigRoofs.push(...shuffle(bigs.filter((r) => r.y <= 14)), ...shuffle(bigs.filter((r) => r.y > 14)))
   }
 
   // 雨水槽要沿著屋頂邊緣（不是屋頂正中間），隨機挑一邊，長度與該邊等長並置中對齊
@@ -1007,6 +1234,7 @@ export function createWorld(scene) {
         z: spot.z + zSign * (spot.d / 2 - inset),
         rotY: 0,
         edgeLength: spot.w - margin,
+        proxyRadius: Math.max(2.0, (spot.w - margin) / 2),
       }
     }
     const xSign = edge === 2 ? 1 : -1
@@ -1016,17 +1244,28 @@ export function createWorld(scene) {
       z: spot.z,
       rotY: Math.PI / 2,
       edgeLength: spot.d - margin,
+      proxyRadius: Math.max(2.0, (spot.d - margin) / 2),
     }
   }
 
-  place(roofSpots, 5, true, 'tower', makeWaterTower, (s) => ({ x: s.x, y: s.y, z: s.z }))   // 目標
-  place(roofSpots, 4, false, 'tower', makeWaterTower, (s) => ({ x: s.x, y: s.y, z: s.z }))  // 誘餌（有蓋）
+  const centerPos = (s) => ({ x: s.x, y: s.y, z: s.z })
 
-  place(roofSpots, 4, true, 'gutter', makeGutter, gutterPos)
-  place(roofSpots, 3, false, 'gutter', makeGutter, gutterPos)
+  place(bigRoofs, 5, true, 'tower', makeWaterTower, centerPos)   // 目標
+  place(bigRoofs, 4, false, 'tower', makeWaterTower, centerPos)  // 誘餌（有蓋）
 
-  place(roofSpots, 4, true, 'roofGarden', makeRoofGarden, (s) => ({ x: s.x, y: s.y, z: s.z }))
-  place(roofSpots, 3, false, 'roofGarden', makeRoofGarden, (s) => ({ x: s.x, y: s.y, z: s.z }))
+  place(bigRoofs, 4, true, 'roofGarden', makeRoofGarden, centerPos)
+  place(bigRoofs, 3, false, 'roofGarden', makeRoofGarden, centerPos)
+
+  place(smallRoofs, 4, true, 'gutter', makeGutter, gutterPos)
+  place(smallRoofs, 3, false, 'gutter', makeGutter, gutterPos)
+
+  // 大屋頂不夠時（隨機生成的商業樓偏少），從透天厝屋頂補足
+  const towersPlaced = targets.filter((t) => t.type === 'tower').length
+  if (towersPlaced < 5) place(smallRoofs, 5 - towersPlaced, true, 'tower', makeWaterTower, centerPos)
+  const gardensPlaced = targets.filter((t) => t.type === 'roofGarden').length
+  if (gardensPlaced < 4) place(smallRoofs, 4 - gardensPlaced, true, 'roofGarden', makeRoofGarden, centerPos)
+  const guttersPlaced = targets.filter((t) => t.type === 'gutter').length
+  if (guttersPlaced < 4) place(bigRoofs, 4 - guttersPlaced, true, 'gutter', makeGutter, gutterPos)
 
   // 空地／工地：一塊空地能同時容納好幾個藏匿點，每塊空地產生數個候選位置
   const lots = shuffle(lotSpots.flatMap((s) => Array.from({ length: 5 }, () => (
@@ -1050,8 +1289,9 @@ export function createWorld(scene) {
   if (tarpPlaced < 4) place(grounds, 4 - tarpPlaced, true, 'tarp', makeTarpPile)
   const containerPlaced = targets.filter((t) => t.type === 'container').length
   if (containerPlaced < 6) {
-    const extra = shuffle(roofSpots.slice())
-    place(extra, 6 - containerPlaced, true, 'container', makeContainer, (s) => ({ x: s.x, y: s.y, z: s.z }))
+    // 用尚未被其他目標使用的屋頂位置補足（兩池剩餘的部分）
+    const extra = shuffle([...smallRoofs, ...bigRoofs])
+    place(extra, 6 - containerPlaced, true, 'container', makeContainer, centerPos)
   }
 
   return { colliders, inspectables, targets, waterMeshes, spawnPoint }
