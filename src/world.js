@@ -794,11 +794,252 @@ function addConstructionSite(scene, colliders, cx, cz) {
     slab.castShadow = true
     frame.add(slab)
   }
+
+  // 鷹架＋綠色防塵網（台灣工地最具辨識度的元素），架在骨架的兩個外側面
+  const scafMat = new THREE.MeshStandardMaterial({ color: 0x8a8f94, roughness: 0.5, metalness: 0.6 })
+  const meshNetMat = new THREE.MeshStandardMaterial({
+    color: 0x2f8f4f, transparent: true, opacity: 0.5, side: THREE.DoubleSide, roughness: 0.9,
+  })
+  const poleGeo = new THREE.CylinderGeometry(0.05, 0.05, 7.2, 6)
+  // 南側（-z）鷹架
+  for (let i = 0; i < 5; i++) {
+    const pole = new THREE.Mesh(poleGeo, scafMat)
+    pole.position.set(-fw / 2 + i * (fw / 4), 3.6, -fd / 2 - 0.55)
+    frame.add(pole)
+  }
+  for (const hy of [2.2, 4.4, 6.6]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.4, 0.07, 0.07), scafMat)
+    bar.position.set(0, hy, -fd / 2 - 0.55)
+    frame.add(bar)
+  }
+  const netS = new THREE.Mesh(new THREE.PlaneGeometry(fw + 0.6, 7.0), meshNetMat)
+  netS.position.set(0, 3.7, -fd / 2 - 0.75)
+  frame.add(netS)
+  // 西側（-x）鷹架
+  for (let i = 0; i < 4; i++) {
+    const pole = new THREE.Mesh(poleGeo, scafMat)
+    pole.position.set(-fw / 2 - 0.55, 3.6, -fd / 2 + 0.4 + i * ((fd - 0.8) / 3))
+    frame.add(pole)
+  }
+  for (const hy of [2.2, 4.4, 6.6]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, fd + 0.4), scafMat)
+    bar.position.set(-fw / 2 - 0.55, hy, 0)
+    frame.add(bar)
+  }
+  const netW = new THREE.Mesh(new THREE.PlaneGeometry(fd + 0.6, 7.0), meshNetMat)
+  netW.rotation.y = Math.PI / 2
+  netW.position.set(-fw / 2 - 0.75, 3.7, 0)
+  frame.add(netW)
+
+  // 一樓其中一跨釘上木模板
+  const plyMat = new THREE.MeshStandardMaterial({ color: 0x9c7a4a, roughness: 0.9, side: THREE.DoubleSide })
+  const ply = new THREE.Mesh(new THREE.PlaneGeometry(fw / 2 - 0.6, 2.6), plyMat)
+  ply.position.set(fw / 4, 1.5, fd / 2 - 0.28)
+  frame.add(ply)
+
   frame.position.set(cx - 6.5, 0.2, cz - 6.5)
   scene.add(frame)
   const frameBox = new THREE.Box3().setFromObject(frame)
   frameBox.expandByScalar(0.9)
   colliders.push(frameBox)
+
+  // 塔式吊車（吊臂伸到骨架上方）
+  const craneMat = new THREE.MeshStandardMaterial({ color: 0xe8b800, roughness: 0.5, metalness: 0.3 })
+  const crane = new THREE.Group()
+  const mast = new THREE.Mesh(new THREE.BoxGeometry(0.8, 14, 0.8), craneMat)
+  mast.position.y = 7
+  mast.castShadow = true
+  crane.add(mast)
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 1.1), craneMat)
+  cab.position.y = 14.5
+  crane.add(cab)
+  const jib = new THREE.Mesh(new THREE.BoxGeometry(12, 0.45, 0.45), craneMat)
+  jib.position.set(-6, 15.1, 0)
+  jib.castShadow = true
+  crane.add(jib)
+  const counterJib = new THREE.Mesh(new THREE.BoxGeometry(4, 0.45, 0.45), craneMat)
+  counterJib.position.set(2.5, 15.1, 0)
+  crane.add(counterJib)
+  const counterWeight = new THREE.Mesh(
+    new THREE.BoxGeometry(1.0, 1.0, 0.9),
+    new THREE.MeshStandardMaterial({ color: 0x8a8a86, roughness: 0.9 })
+  )
+  counterWeight.position.set(4.2, 14.8, 0)
+  crane.add(counterWeight)
+  const apex = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.5), craneMat)
+  apex.position.y = 16.1
+  crane.add(apex)
+  const tieMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.6 })
+  for (const [tx, tlen, trot] of [[-3.5, 7.4, 0.28], [2.2, 4.6, -0.42]]) {
+    const tie = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, tlen, 5), tieMat)
+    tie.position.set(tx, 15.9, 0)
+    tie.rotation.z = Math.PI / 2 + trot
+    crane.add(tie)
+  }
+  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 6, 5), tieMat)
+  cable.position.set(-9.5, 12, 0)
+  crane.add(cable)
+  const hook = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), craneMat)
+  hook.position.set(-9.5, 8.9, 0)
+  crane.add(hook)
+  crane.position.set(cx + 2, 0.2, cz - 10.2)
+  scene.add(crane)
+  const mastBox = new THREE.Box3().setFromObject(mast.clone())
+  mastBox.translate(new THREE.Vector3(cx + 2, 0.2, cz - 10.2))
+  mastBox.expandByScalar(0.9)
+  colliders.push(mastBox)
+
+  // 挖土機
+  const digger = new THREE.Group()
+  const trackMat = new THREE.MeshStandardMaterial({ color: 0x2e2e2e, roughness: 0.9 })
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd9a012, roughness: 0.55, metalness: 0.2 })
+  for (const tz of [-0.62, 0.62]) {
+    const track = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.55, 0.6), trackMat)
+    track.position.set(0, 0.28, tz)
+    digger.add(track)
+  }
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.55, 1.7), bodyMat)
+  deck.position.y = 0.85
+  digger.add(deck)
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.95, 0.9), bodyMat)
+  cabin.position.set(-0.45, 1.6, 0.35)
+  digger.add(cabin)
+  const cabinWin = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.7, 0.6),
+    new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.2, metalness: 0.4 })
+  )
+  cabinWin.position.set(0.04, 1.65, 0.35)
+  cabinWin.rotation.y = Math.PI / 2
+  digger.add(cabinWin)
+  const boom = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.32, 0.3), bodyMat)
+  boom.position.set(1.55, 1.85, -0.1)
+  boom.rotation.z = 0.62
+  boom.castShadow = true
+  digger.add(boom)
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.24, 0.24), bodyMat)
+  arm.position.set(3.0, 1.75, -0.1)
+  arm.rotation.z = -0.95
+  digger.add(arm)
+  const bucket = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.45, 0.55), trackMat)
+  bucket.position.set(3.55, 0.75, -0.1)
+  digger.add(bucket)
+  digger.rotation.y = rand(-0.4, 0.4)
+  digger.position.set(cx + 8.2, 0.2, cz + 0.2)
+  scene.add(digger)
+  const diggerBox = new THREE.Box3().setFromObject(digger)
+  diggerBox.expandByScalar(0.9)
+  colliders.push(diggerBox)
+
+  // 貨櫃工務所
+  const office = new THREE.Group()
+  const officeBody = new THREE.Mesh(
+    new THREE.BoxGeometry(4.8, 2.5, 2.2),
+    new THREE.MeshStandardMaterial({ color: 0xdde4e8, roughness: 0.6, metalness: 0.25 })
+  )
+  officeBody.position.y = 1.35
+  officeBody.castShadow = true
+  office.add(officeBody)
+  const officeStripe = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.8, 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x2a5fa8, roughness: 0.6 })
+  )
+  officeStripe.position.set(0, 2.3, 1.11)
+  office.add(officeStripe)
+  const officeDoor = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.8, 1.8),
+    new THREE.MeshStandardMaterial({ color: 0x4a5a60, roughness: 0.7 })
+  )
+  officeDoor.position.set(-1.6, 1.0, 1.11)
+  office.add(officeDoor)
+  const officeWin = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.4, 0.8),
+    new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.2 })
+  )
+  officeWin.position.set(0.8, 1.5, 1.11)
+  office.add(officeWin)
+  office.rotation.y = 0.08
+  office.position.set(cx - 8.5, 0.2, cz + 10.3)
+  scene.add(office)
+  const officeBox = new THREE.Box3().setFromObject(office)
+  officeBox.expandByScalar(0.9)
+  colliders.push(officeBox)
+
+  // 流動廁所
+  const toilet = new THREE.Mesh(
+    new THREE.BoxGeometry(1.05, 2.3, 1.05),
+    new THREE.MeshStandardMaterial({ color: 0x74b8d8, roughness: 0.6 })
+  )
+  toilet.position.set(cx - 4.6, 1.35, cz + 11.2)
+  toilet.castShadow = true
+  scene.add(toilet)
+  const toiletDoor = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.7, 1.9),
+    new THREE.MeshStandardMaterial({ color: 0x4a90b8, roughness: 0.6 })
+  )
+  toiletDoor.position.set(cx - 4.6, 1.2, cz + 11.2 - 0.54)
+  toiletDoor.rotation.y = Math.PI
+  scene.add(toiletDoor)
+
+  // 鋼筋堆（放在枕木上）
+  const rebarMat = new THREE.MeshStandardMaterial({ color: 0x6b4a3a, roughness: 0.7, metalness: 0.4 })
+  const sleeperMat = new THREE.MeshStandardMaterial({ color: 0x7a5c3a, roughness: 0.9 })
+  for (const sz2 of [-2, 2]) {
+    const sleeper = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.22, 0.22), sleeperMat)
+    sleeper.position.set(cx + 10.8, 0.31, cz + 4 + sz2)
+    scene.add(sleeper)
+  }
+  const rebarGeo = new THREE.CylinderGeometry(0.045, 0.045, 6, 5)
+  for (let i = 0; i < 7; i++) {
+    const rebar = new THREE.Mesh(rebarGeo, rebarMat)
+    rebar.rotation.x = Math.PI / 2
+    rebar.position.set(cx + 10.5 + (i % 4) * 0.12, 0.47 + Math.floor(i / 4) * 0.1, cz + 4)
+    scene.add(rebar)
+  }
+
+  // 模板木材堆
+  const plankMat = new THREE.MeshStandardMaterial({ color: 0xb08a56, roughness: 0.9 })
+  for (let i = 0; i < 4; i++) {
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(3, 0.12, 0.9), plankMat)
+    plank.position.set(cx - 10.6 + rand(-0.08, 0.08), 0.28 + i * 0.13, cz + 0.5 + rand(-0.08, 0.08))
+    plank.rotation.y = rand(-0.05, 0.05)
+    scene.add(plank)
+  }
+
+  // 磚塊棧板
+  const pallet = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.12, 1.1), sleeperMat)
+  pallet.position.set(cx - 10.6, 0.28, cz + 3.6)
+  scene.add(pallet)
+  const bricks = new THREE.Mesh(
+    new THREE.BoxGeometry(1.3, 0.8, 1.0),
+    new THREE.MeshStandardMaterial({ color: 0x9c4a3a, roughness: 0.95 })
+  )
+  bricks.position.set(cx - 10.6, 0.75, cz + 3.6)
+  scene.add(bricks)
+
+  // 油桶
+  const drumGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.92, 12)
+  const drumColors = [0x2a5fa8, 0x8a4a30, 0x3a6a4a]
+  drumColors.forEach((color, i) => {
+    const drum = new THREE.Mesh(drumGeo, new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.35 }))
+    drum.position.set(cx + 11 + (i % 2) * 0.75, 0.68, cz - 6.5 + Math.floor(i / 2) * 0.75)
+    scene.add(drum)
+  })
+
+  // 地面細節：輪胎痕與碎石斑
+  const trackDecalMat = new THREE.MeshStandardMaterial({ color: 0x7a6248, roughness: 0.98 })
+  for (const tx of [-2.3, -0.7]) {
+    const trackDecal = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 15), trackDecalMat)
+    trackDecal.rotation.x = -Math.PI / 2
+    trackDecal.position.set(cx + tx, 0.215, cz + 5)
+    scene.add(trackDecal)
+  }
+  const patchMat = new THREE.MeshStandardMaterial({ color: 0x7a7268, roughness: 0.98 })
+  for (const [gx, gz, gr] of [[4, -2, 1.8], [-3, 2.5, 1.4]]) {
+    const patch = new THREE.Mesh(new THREE.CircleGeometry(gr, 14), patchMat)
+    patch.rotation.x = -Math.PI / 2
+    patch.position.set(cx + gx, 0.213, cz + gz)
+    scene.add(patch)
+  }
 
   // 砂堆與碎石堆
   const sand = new THREE.Mesh(
