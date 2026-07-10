@@ -1297,6 +1297,60 @@ export function createWorld(scene) {
   return { colliders, inspectables, targets, waterMeshes, spawnPoint }
 }
 
+// 產生單一積水樣態的展示物件（開場圖鑑用縮圖渲染）
+export function makePreviewObject(type) {
+  const sink = [] // 縮圖不需要水面閃爍動畫
+  switch (type) {
+    case 'tower': return makeWaterTower(true, sink)
+    case 'tarp': return makeTarpPile(true, sink)
+    case 'debris': return makeDebris(true, sink)
+    case 'roofGarden': return makeRoofGarden(true, sink)
+    case 'gutter': return makeGutter(true, sink, 3.6)
+    case 'container': return makeContainer(true, sink)
+    default: return new THREE.Group()
+  }
+}
+
+// 遊戲結束後標示「未找到」地點的紅色光柱＋類型文字標籤
+export function makeMissedMarker(labelText) {
+  const g = new THREE.Group()
+  const color = 0xff4d4d
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5, 0.5, 40, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, depthWrite: false })
+  )
+  beam.position.y = 20
+  g.add(beam)
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(1.6, 0.12, 8, 28),
+    new THREE.MeshBasicMaterial({ color })
+  )
+  ring.rotation.x = Math.PI / 2
+  ring.position.y = 0.4
+  g.add(ring)
+
+  // 類型文字標籤：永遠面向鏡頭、隔著建築也看得到，方便玩家複盤時找到位置
+  const c = document.createElement('canvas')
+  c.width = 256; c.height = 64
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = 'rgba(170, 30, 30, 0.9)'
+  ctx.fillRect(0, 0, 256, 64)
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 30px "Noto Sans TC", "Microsoft JhengHei", sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(labelText, 128, 34)
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }))
+  sprite.scale.set(7, 1.75, 1)
+  sprite.position.y = 9
+  sprite.renderOrder = 999
+  g.add(sprite)
+
+  return g
+}
+
 // 找到目標後的綠色光柱標記
 export function makeFoundMarker(good = true) {
   const g = new THREE.Group()
