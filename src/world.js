@@ -719,6 +719,145 @@ function addRowhouseStrip(scene, colliders, roofSpots, groundSpots, px, pz, sub,
   }
 }
 
+// 施工告示牌材質
+function makeConstructionSignTexture() {
+  const c = document.createElement('canvas')
+  c.width = 256; c.height = 96
+  const g = c.getContext('2d')
+  g.fillStyle = '#f5f0e0'
+  g.fillRect(0, 0, 256, 96)
+  // 黃黑斜紋邊框
+  g.save()
+  g.beginPath()
+  g.rect(0, 0, 256, 14)
+  g.rect(0, 82, 256, 14)
+  g.clip()
+  for (let x = -20; x < 276; x += 20) {
+    g.fillStyle = '#e8b800'
+    g.beginPath()
+    g.moveTo(x, 0); g.lineTo(x + 10, 0); g.lineTo(x - 4, 96); g.lineTo(x - 14, 96)
+    g.closePath(); g.fill()
+    g.fillStyle = '#222222'
+    g.beginPath()
+    g.moveTo(x + 10, 0); g.lineTo(x + 20, 0); g.lineTo(x + 6, 96); g.lineTo(x - 4, 96)
+    g.closePath(); g.fill()
+  }
+  g.restore()
+  g.fillStyle = '#c62828'
+  g.font = 'bold 34px "Noto Sans TC", "Microsoft JhengHei", sans-serif'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  g.fillText('施工中 請勿進入', 128, 48)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 工地：藍色圍籬、施工中的混凝土骨架、砂石堆、水泥涵管、三角錐與告示牌。
+// 回傳工地內可放帆布蓋建材的位置清單（帆布積水只出現在工地）。
+function addConstructionSite(scene, colliders, cx, cz) {
+  // 裸土地面
+  const dirt = new THREE.Mesh(
+    new THREE.PlaneGeometry(BLOCK, BLOCK),
+    new THREE.MeshStandardMaterial({ color: 0x9a7d5a, roughness: 0.98 })
+  )
+  dirt.rotation.x = -Math.PI / 2
+  dirt.position.set(cx, 0.21, cz)
+  scene.add(dirt)
+
+  // 藍色鐵皮圍籬
+  const hoardMat = new THREE.MeshStandardMaterial({ color: 0x3a6ea8, roughness: 0.55, metalness: 0.35 })
+  for (const [dx, dz, w, d] of [
+    [0, -BLOCK / 2, BLOCK, 0.25], [0, BLOCK / 2, BLOCK, 0.25],
+    [-BLOCK / 2, 0, 0.25, BLOCK], [BLOCK / 2, 0, 0.25, BLOCK],
+  ]) {
+    const fence = new THREE.Mesh(new THREE.BoxGeometry(w, 2.4, d), hoardMat)
+    fence.position.set(cx + dx, 1.4, cz + dz)
+    scene.add(fence)
+  }
+
+  // 施工中的混凝土骨架（柱＋樓板，兩層）
+  const concMat = new THREE.MeshStandardMaterial({ color: 0xb6b0a4, roughness: 0.9 })
+  const frame = new THREE.Group()
+  const fw = 9, fd = 7
+  for (const sx of [-1, 0, 1]) {
+    for (const sz of [-1, 1]) {
+      const col = new THREE.Mesh(new THREE.BoxGeometry(0.4, 6.4, 0.4), concMat)
+      col.position.set(sx * (fw / 2 - 0.3), 3.2, sz * (fd / 2 - 0.3))
+      col.castShadow = true
+      frame.add(col)
+    }
+  }
+  for (const fy of [3.1, 6.3]) {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.3, fd), concMat)
+    slab.position.y = fy
+    slab.castShadow = true
+    frame.add(slab)
+  }
+  frame.position.set(cx - 6.5, 0.2, cz - 6.5)
+  scene.add(frame)
+  const frameBox = new THREE.Box3().setFromObject(frame)
+  frameBox.expandByScalar(0.9)
+  colliders.push(frameBox)
+
+  // 砂堆與碎石堆
+  const sand = new THREE.Mesh(
+    new THREE.ConeGeometry(2.1, 1.3, 12),
+    new THREE.MeshStandardMaterial({ color: 0xd2b57e, roughness: 0.98 })
+  )
+  sand.position.set(cx + 6, 0.85, cz - 7)
+  scene.add(sand)
+  const gravel = new THREE.Mesh(
+    new THREE.ConeGeometry(1.6, 1.0, 12),
+    new THREE.MeshStandardMaterial({ color: 0x8a8a86, roughness: 0.98 })
+  )
+  gravel.position.set(cx + 9.5, 0.7, cz - 3.5)
+  scene.add(gravel)
+
+  // 水泥涵管（兩根在下、一根疊上）
+  const pipeMat = new THREE.MeshStandardMaterial({ color: 0xc4beb2, roughness: 0.85, side: THREE.DoubleSide })
+  const pipeGeo = new THREE.CylinderGeometry(0.6, 0.6, 2.6, 14, 1, true)
+  const pipePos = [
+    [cx - 7.5, 0.8, cz + 6, 0], [cx - 7.5, 0.8, cz + 7.4, 0], [cx - 7.5, 1.85, cz + 6.7, 0],
+  ]
+  for (const [px2, py2, pz2] of pipePos) {
+    const pipe = new THREE.Mesh(pipeGeo, pipeMat)
+    pipe.rotation.z = Math.PI / 2
+    pipe.position.set(px2, py2, pz2)
+    scene.add(pipe)
+  }
+
+  // 三角錐
+  const coneMat = new THREE.MeshStandardMaterial({ color: 0xe86a10, roughness: 0.6 })
+  for (let i = 0; i < 5; i++) {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 8), coneMat)
+    cone.position.set(cx + rand(-4, 4), 0.48, cz + BLOCK / 2 - rand(1.5, 4))
+    scene.add(cone)
+  }
+
+  // 施工告示牌（面向街道）
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.2, 1.2),
+    new THREE.MeshBasicMaterial({ map: makeConstructionSignTexture(), side: THREE.DoubleSide })
+  )
+  sign.position.set(cx, 1.9, cz + BLOCK / 2 + 0.2)
+  scene.add(sign)
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.7 })
+  for (const sx of [-1.3, 1.3]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 6), postMat)
+    post.position.set(cx + sx, 1.2, cz + BLOCK / 2 + 0.2)
+    scene.add(post)
+  }
+
+  // 帆布蓋建材的候選位置（避開骨架、砂石與涵管的角落）
+  return [
+    { x: cx + rand(2, 5), z: cz + rand(2, 5) },
+    { x: cx + rand(-3, 0), z: cz + rand(5, 8) },
+    { x: cx + rand(4, 8), z: cz + rand(5, 8) },
+    { x: cx + rand(1, 5), z: cz + rand(-4, -1) },
+  ]
+}
+
 // 運河小船：純造景
 function makeBoat() {
   const g = new THREE.Group()
@@ -935,10 +1074,21 @@ export function createWorld(scene) {
 
   const roofSpots = []      // 可放水塔的屋頂 {x, y, z}
   const groundSpots = []    // 巷弄/街邊可放容器的位置
-  const lotSpots = []       // 空地中心（放廢棄物）
+  const lotSpots = []       // 雜草空地中心（放廢棄物）
+  const siteSpots = []      // 工地內的帆布建材候選位置
 
   let signIdx = 0
   let spawnPoint = null // 保留空地街區（無建築）的實際中心座標，供無人機安全重生用
+
+  // 預先固定選出 3 個街區作為工地（帆布積水只出現在工地，保證數量充足）
+  const centerIdx = Math.floor(GRID / 2)
+  const siteBlocks = new Set()
+  while (siteBlocks.size < 3) {
+    const sbx = Math.floor(Math.random() * GRID)
+    const sbz = Math.floor(Math.random() * GRID)
+    if (sbx === centerIdx && sbz === centerIdx) continue
+    siteBlocks.add(`${sbx},${sbz}`)
+  }
 
   for (let bx = 0; bx < GRID; bx++) {
     for (let bz = 0; bz < GRID; bz++) {
@@ -956,7 +1106,7 @@ export function createWorld(scene) {
       pad.receiveShadow = true
       scene.add(pad)
 
-      // 中央街區留空當出發廣場，並放置赤崁樓地標；其餘 ~18% 是空地
+      // 中央街區留空當出發廣場，並放置赤崁樓地標；3 個街區是工地；其餘 ~14% 是雜草空地
       if (isCenter) {
         const landmark = makeChihkanTower()
         landmark.position.set(cx, 0.2, cz - 7)
@@ -967,7 +1117,11 @@ export function createWorld(scene) {
         colliders.push(landmarkBox)
         continue
       }
-      if (Math.random() < 0.18) {
+      if (siteBlocks.has(`${bx},${bz}`)) {
+        siteSpots.push(...addConstructionSite(scene, colliders, cx, cz))
+        continue
+      }
+      if (Math.random() < 0.14) {
         lotSpots.push({ x: cx, z: cz })
         // 空地圍牆
         const fenceMat = new THREE.MeshStandardMaterial({ color: 0x9a9a90, roughness: 0.9 })
@@ -1270,16 +1424,17 @@ export function createWorld(scene) {
   const guttersPlaced = targets.filter((t) => t.type === 'gutter').length
   if (guttersPlaced < 4) place(bigRoofs, 4 - guttersPlaced, true, 'gutter', makeGutter, gutterPos)
 
-  // 空地／工地：一塊空地能同時容納好幾個藏匿點，每塊空地產生數個候選位置
+  // 雜草空地：一塊空地能同時容納好幾個藏匿點，每塊空地產生數個候選位置
   const lots = shuffle(lotSpots.flatMap((s) => Array.from({ length: 5 }, () => (
     { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) }
   ))))
   place(lots, 5, true, 'debris', makeDebris)
   place(lots, 3, false, 'debris', makeDebris)
 
-  // 帆布蓋建材：在地面上的空地／工地，而非屋頂
-  place(lots, 4, true, 'tarp', makeTarpPile)
-  place(lots, 3, false, 'tarp', makeTarpPile)
+  // 帆布蓋建材：只出現在工地（3 個工地街區 × 4 個候選位置，數量必然足額）
+  const sites = shuffle(siteSpots)
+  place(sites, 4, true, 'tarp', makeTarpPile)
+  place(sites, 3, false, 'tarp', makeTarpPile)
 
   const grounds = shuffle(groundSpots)
   place(grounds, 6, true, 'container', makeContainer)
@@ -1288,8 +1443,6 @@ export function createWorld(scene) {
   // 空地不夠時（隨機生成的城市空地數量偏少），用街邊位置補足
   const debrisPlaced = targets.filter((t) => t.type === 'debris').length
   if (debrisPlaced < 5) place(grounds, 5 - debrisPlaced, true, 'debris', makeDebris)
-  const tarpPlaced = targets.filter((t) => t.type === 'tarp').length
-  if (tarpPlaced < 4) place(grounds, 4 - tarpPlaced, true, 'tarp', makeTarpPile)
   const containerPlaced = targets.filter((t) => t.type === 'container').length
   if (containerPlaced < 6) {
     // 用尚未被其他目標使用的屋頂位置補足（兩池剩餘的部分）
