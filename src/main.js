@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { createWorld, makeFoundMarker, TARGET_TYPES } from './world.js'
+import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
 
 const GAME_TIME = 120     // 秒
@@ -72,12 +72,80 @@ const ui = {
   hud: $('hud'), timer: $('timer'), score: $('score'), found: $('found'),
   crosshair: $('crosshair'), hint: $('hint'), feed: $('feed'), alt: $('alt'),
   startOverlay: $('startOverlay'), pauseOverlay: $('pauseOverlay'), endOverlay: $('endOverlay'),
+  introOverlay: $('introOverlay'), introGrid: $('introGrid'), introStartBtn: $('introStartBtn'),
   startBtn: $('startBtn'), resumeBtn: $('resumeBtn'), restartBtn: $('restartBtn'),
+  reviewBtn: $('reviewBtn'), reviewBanner: $('reviewBanner'),
   finalScore: $('finalScore'), rank: $('rank'), breakdown: $('breakdown'),
 }
 
+// ---------- 積水樣態圖鑑（開場介紹） ----------
+// 用實際的遊戲 3D 模型渲染縮圖，玩家看到的就是場景中的真實外觀
+const INTRO_CARDS = [
+  { type: 'tower', hint: '不鏽鋼水塔沒有頂蓋、看得到水面反光的才是目標；有錐形蓋的是誘餌。', where: '大樓屋頂（要飛到上方看）' },
+  { type: 'tarp', hint: '藍白條紋帆布蓋著建材堆，帆布凹陷處積水。', where: '空地／工地的地面' },
+  { type: 'debris', hint: '廢棄雜物堆旁邊的一灘積水。', where: '有圍牆的空地' },
+  { type: 'roofGarden', hint: '屋頂花園的花盆之間藏著一灘積水。', where: '大樓屋頂' },
+  { type: 'gutter', hint: '屋頂邊緣的長條排水槽，落葉堵塞後積水。', where: '透天厝屋頂的四邊' },
+  { type: 'container', hint: '水桶、水盆、輪胎裡的積水。', where: '巷弄、中庭、騎樓下' },
+]
+
+const PREVIEW_VIEWS = {
+  tower: { pos: [5.5, 6.5, 5.5], look: [0, 3, 0] },
+  tarp: { pos: [3.5, 3, 3.5], look: [0, 0.7, 0] },
+  debris: { pos: [4, 3.5, 4], look: [0, 0.5, 0] },
+  roofGarden: { pos: [3.5, 3.5, 3.5], look: [0, 0.5, 0] },
+  gutter: { pos: [2.6, 2.4, 2.6], look: [0, 0.2, 0] },
+  container: { pos: [2.2, 2, 2.2], look: [0, 0.4, 0] },
+}
+
+let introBuilt = false
+function buildIntroCards() {
+  if (introBuilt) return
+  introBuilt = true
+
+  const tr = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+  tr.setSize(220, 150)
+  const ts = new THREE.Scene()
+  ts.background = new THREE.Color(0xbfdcee)
+  ts.add(new THREE.HemisphereLight(0xffffff, 0x8a8f78, 1.1))
+  const dl = new THREE.DirectionalLight(0xfff2df, 2.0)
+  dl.position.set(4, 6, 3)
+  ts.add(dl)
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(7, 24),
+    new THREE.MeshStandardMaterial({ color: 0xa89a7e, roughness: 0.95 })
+  )
+  ground.rotation.x = -Math.PI / 2
+  ts.add(ground)
+  const tc = new THREE.PerspectiveCamera(45, 220 / 150, 0.1, 60)
+
+  for (const card of INTRO_CARDS) {
+    const obj = makePreviewObject(card.type)
+    ts.add(obj)
+    const v = PREVIEW_VIEWS[card.type]
+    tc.position.set(...v.pos)
+    tc.lookAt(...v.look)
+    tr.render(ts, tc)
+    const dataUrl = tr.domElement.toDataURL('image/png')
+    ts.remove(obj)
+
+    const info = TARGET_TYPES[card.type]
+    const el = document.createElement('div')
+    el.className = 'intro-card'
+    el.innerHTML = `
+      <img alt="${info.label}" src="${dataUrl}">
+      <div class="card-body">
+        <div class="card-title"><span class="pts p${info.points}">+${info.points}</span>${info.label}</div>
+        <div class="card-hint">${card.hint}</div>
+        <div class="card-where">📍 ${card.where}</div>
+      </div>`
+    ui.introGrid.appendChild(el)
+  }
+  tr.dispose()
+}
+
 // ---------- 遊戲狀態 ----------
-let state = 'start'   // start | playing | paused | ended
+let state = 'start'   // start | playing | paused | ended | review（結束後自由飛行複盤）
 let timeLeft = GAME_TIME
 let score = 0
 let foundCount = 0
@@ -106,6 +174,12 @@ function lockPointer() {
 
 ui.startBtn.addEventListener('click', () => {
   ui.startOverlay.classList.add('hidden')
+  buildIntroCards()
+  ui.introOverlay.classList.remove('hidden')
+})
+
+ui.introStartBtn.addEventListener('click', () => {
+  ui.introOverlay.classList.add('hidden')
   ui.hud.classList.remove('hidden')
   state = 'playing'
   lockPointer()
@@ -119,12 +193,28 @@ ui.resumeBtn.addEventListener('click', () => {
 
 ui.restartBtn.addEventListener('click', () => startNewRound())
 
+// 複盤模式：結束後自由飛行查看未找到的積水（紅色光柱標示）
+ui.reviewBtn.addEventListener('click', () => {
+  state = 'review'
+  ui.endOverlay.classList.add('hidden')
+  ui.hud.classList.remove('hidden')
+  ui.reviewBanner.classList.remove('hidden')
+  lockPointer()
+})
+
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === renderer.domElement
   drone.enabled = locked
   if (!locked && state === 'playing') {
     state = 'paused'
     ui.pauseOverlay.classList.remove('hidden')
+  }
+  // 複盤中按 Esc：返回結算畫面
+  if (!locked && state === 'review') {
+    state = 'ended'
+    ui.reviewBanner.classList.add('hidden')
+    ui.hud.classList.add('hidden')
+    ui.endOverlay.classList.remove('hidden')
   }
 })
 
@@ -200,6 +290,16 @@ function endGame() {
   lines.push(`合計發現積水：${foundCount} / ${targets.length} 處`)
   ui.breakdown.innerHTML = lines.join('<br>')
   ui.endOverlay.classList.remove('hidden')
+
+  // 用紅色光柱＋類型標籤標示所有未找到的積水，供複盤模式查看
+  for (const t of targets) {
+    if (t.found) continue
+    const marker = makeMissedMarker(`${t.label} +${t.points}`)
+    const wp = new THREE.Vector3()
+    t.group.getWorldPosition(wp)
+    marker.position.copy(wp)
+    worldGroup.add(marker)
+  }
 }
 
 function startNewRound() {
@@ -215,6 +315,8 @@ function startNewRound() {
   ui.feed.innerHTML = ''
   ui.endOverlay.classList.add('hidden')
   ui.pauseOverlay.classList.add('hidden')
+  ui.introOverlay.classList.add('hidden')
+  ui.reviewBanner.classList.add('hidden')
   ui.hud.classList.add('hidden')
   ui.startOverlay.classList.remove('hidden')
   updateHUD()
@@ -258,6 +360,10 @@ function animate() {
     ui.crosshair.classList.toggle('lock', !!aiming)
     ui.hint.classList.toggle('hidden', !aiming)
 
+    updateHUD()
+  } else if (state === 'review') {
+    // 複盤模式：自由飛行查看未找到的積水，不計時、不計分
+    drone.update(dt, colliders)
     updateHUD()
   }
 
