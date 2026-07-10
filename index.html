@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>台南無人機積水巡檢隊</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚁</text></svg>" />
-  <script type="module" crossorigin src="./assets/index-Bw9QMGAa.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-Cst5GCvt.css">
+  <script type="module" crossorigin src="./assets/index-CUiPa-WX.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-cJag3f8_.css">
 </head>
 <body>
   <div id="app"></div>
@@ -22,6 +22,7 @@
     <div id="hint" class="hidden">按 <b>左鍵</b> 標記可疑積水處</div>
     <div id="feed"></div>
     <div id="alt">高度 0 m</div>
+    <div id="reviewBanner" class="hidden">🔍 複盤模式：<b>紅色光柱</b>＝未找到的積水（按 <b>Esc</b> 返回結算畫面）</div>
   </div>
 
   <!-- 開始畫面 -->
@@ -53,8 +54,18 @@
           </ul>
         </div>
       </div>
-      <button id="startBtn">點擊起飛，開始任務！</button>
+      <button id="startBtn">下一步：認識積水樣態 ➜</button>
       <p class="tip">小提示：積水表面會反光閃爍，仔細觀察屋頂、空地與巷弄角落。若按 WASD 沒反應，請改用方向鍵，或將輸入法切換為英文。</p>
+    </div>
+  </div>
+
+  <!-- 積水樣態圖鑑（開場介紹） -->
+  <div id="introOverlay" class="overlay hidden">
+    <div class="panel wide">
+      <h1>🔍 認識積水樣態</h1>
+      <p class="sub">記住這些外觀與可能位置——它們都藏在城市各處。注意：場景中也有<b>沒有水的誘餌</b>（有蓋水塔、乾容器等），誤報會扣 5 分！</p>
+      <div id="introGrid" class="intro-grid"></div>
+      <button id="introStartBtn">點擊起飛，開始任務！</button>
     </div>
   </div>
 
@@ -73,7 +84,10 @@
       <div id="finalScore"></div>
       <div id="rank"></div>
       <div id="breakdown"></div>
-      <button id="restartBtn">再巡檢一次</button>
+      <div class="btn-row">
+        <button id="reviewBtn" class="secondary">🔍 繼續飛行查看未找到的積水</button>
+        <button id="restartBtn">再巡檢一次</button>
+      </div>
     </div>
   </div>
 
