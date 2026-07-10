@@ -94,7 +94,7 @@ const PREVIEW_VIEWS = {
   tarp: { pos: [3.5, 3, 3.5], look: [0, 0.7, 0] },
   debris: { pos: [4, 3.5, 4], look: [0, 0.5, 0] },
   roofGarden: { pos: [3.5, 3.5, 3.5], look: [0, 0.5, 0] },
-  gutter: { pos: [2.6, 2.4, 2.6], look: [0, 0.2, 0] },
+  gutter: { pos: [3.8, 3.4, 4.4], look: [0, 0.4, 0.6] },
   container: { pos: [2.2, 2, 2.2], look: [0, 0.4, 0] },
 }
 

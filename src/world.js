@@ -699,7 +699,8 @@ function addRowhouseStrip(scene, colliders, roofSpots, groundSpots, px, pz, sub,
         scene.add(stair)
       }
 
-      roofSpots.push({ x: hx, y: roofY, z: pz, w: w - 0.8, d: d - 0.8 })
+      // 記錄完整屋頂尺寸與女兒牆資訊，讓雨水槽能精準貼齊女兒牆內側（屋頂邊緣）
+      roofSpots.push({ x: hx, y: roofY, z: pz, w, d, parapet: true })
     }
 
     // 店家招牌（共用少量材質，重複使用）
@@ -1221,10 +1222,12 @@ export function createWorld(scene) {
     bigRoofs.push(...shuffle(bigs.filter((r) => r.y <= 14)), ...shuffle(bigs.filter((r) => r.y > 14)))
   }
 
-  // 雨水槽要沿著屋頂邊緣（不是屋頂正中間），隨機挑一邊，長度與該邊等長並置中對齊
+  // 雨水槽「只能」出現在屋頂邊緣：隨機挑一邊，槽體外緣貼齊該邊
+  // （有女兒牆的透天厝貼齊女兒牆內側），長度沿著整條邊延伸。
   function gutterPos(spot) {
-    const inset = 0.35
-    const margin = 0.6 // 兩端留一點餘量，避免超出屋頂角落
+    // 槽寬 0.45（半寬 0.225）：inset 讓槽的外緣正好碰到屋頂邊界／女兒牆內側
+    const inset = spot.parapet ? 0.38 : 0.35
+    const margin = 0.9 // 兩端避開屋頂角落／女兒牆轉角
     const edge = Math.floor(Math.random() * 4) // 0/1: 南北邊；2/3: 東西邊
     if (edge < 2) {
       const zSign = edge === 0 ? 1 : -1
@@ -1305,7 +1308,32 @@ export function makePreviewObject(type) {
     case 'tarp': return makeTarpPile(true, sink)
     case 'debris': return makeDebris(true, sink)
     case 'roofGarden': return makeRoofGarden(true, sink)
-    case 'gutter': return makeGutter(true, sink, 3.6)
+    case 'gutter': {
+      // 雨水槽只出現在屋頂邊緣：縮圖用一小塊帶女兒牆的屋頂平台呈現真實情境
+      const g = new THREE.Group()
+      const slabW = 4.6, slabD = 3.4, slabH = 0.5
+      const slabMat = new THREE.MeshStandardMaterial({ color: 0xa89a7e, roughness: 0.95 })
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(slabW, slabH, slabD), slabMat)
+      slab.position.y = slabH / 2
+      g.add(slab)
+      // 三邊女兒牆（前緣留給雨水槽）
+      const rimMat = new THREE.MeshStandardMaterial({ color: 0xcfc8bb, roughness: 0.9 })
+      const t = 0.15, ph = 0.55
+      const rims = [
+        { geo: new THREE.BoxGeometry(slabW, ph, t), x: 0, z: -(slabD - t) / 2 },
+        { geo: new THREE.BoxGeometry(t, ph, slabD), x: (slabW - t) / 2, z: 0 },
+        { geo: new THREE.BoxGeometry(t, ph, slabD), x: -(slabW - t) / 2, z: 0 },
+      ]
+      for (const r of rims) {
+        const rim = new THREE.Mesh(r.geo, rimMat)
+        rim.position.set(r.x, slabH + ph / 2, r.z)
+        g.add(rim)
+      }
+      const gutter = makeGutter(true, sink, slabW - 0.7)
+      gutter.position.set(0, slabH, slabD / 2 - 0.35)
+      g.add(gutter)
+      return g
+    }
     case 'container': return makeContainer(true, sink)
     default: return new THREE.Group()
   }
