@@ -86,7 +86,7 @@ const INTRO_CARDS = [
   { type: 'debris', hint: '廢棄雜物堆旁邊的一灘積水。', where: '有圍牆的空地' },
   { type: 'roofGarden', hint: '整片綠化的空中花園，積水藏在花盆、水桶、澆花器等容器裡。', where: '大樓屋頂（整片綠色的那種）' },
   { type: 'gutter', hint: '屋頂邊緣的長條排水槽，落葉堵塞後積水。', where: '透天厝屋頂的四邊' },
-  { type: 'container', hint: '水桶、水盆、輪胎裡的積水。', where: '巷弄、中庭、騎樓下' },
+  { type: 'container', hint: '水桶、水盆、輪胎、垃圾桶、保麗龍箱裡的積水。', where: '巷弄、騎樓下，也可能在騎樓遮簷上或高低建築之間的屋簷' },
 ]
 
 const PREVIEW_VIEWS = {
@@ -95,7 +95,7 @@ const PREVIEW_VIEWS = {
   debris: { pos: [4, 3.5, 4], look: [0, 0.5, 0] },
   roofGarden: { pos: [5.2, 4.6, 5.2], look: [0, 0.2, 0] },
   gutter: { pos: [3.8, 3.4, 4.4], look: [0, 0.4, 0.6] },
-  container: { pos: [2.2, 2, 2.2], look: [0, 0.4, 0] },
+  container: { pos: [2.6, 2.3, 2.6], look: [0, 0.35, 0] },
 }
 
 let introBuilt = false

@@ -214,10 +214,70 @@ function makeWaterTower(hasWater, waterMeshes) {
   return g
 }
 
-// 巷弄容器：水桶 / 水盆 / 輪胎
-function makeContainer(hasWater, waterMeshes) {
+// 積水容器：水桶 / 水盆 / 輪胎 / 垃圾桶 / 保麗龍箱
+// kinds 可限制產生的容器種類（例如屋簷上偏好垃圾桶與保麗龍箱）
+function makeContainer(hasWater, waterMeshes, kinds) {
   const g = new THREE.Group()
-  const kind = pick(['bucket', 'basin', 'tire'])
+  const kind = pick(kinds ?? ['bucket', 'basin', 'tire', 'trash', 'foam'])
+
+  if (kind === 'foam') {
+    // 保麗龍箱：白色方箱、開口朝上（台灣市場常見，經典孳生源）
+    const foamMat = new THREE.MeshStandardMaterial({ color: 0xf2f2ec, roughness: 0.95 })
+    const bw = 0.72, bd = 0.52, bh = 0.42, t = 0.06
+    const bottom = new THREE.Mesh(new THREE.BoxGeometry(bw, t, bd), foamMat)
+    bottom.position.y = t / 2
+    g.add(bottom)
+    for (const [wx, wz, ww, wd] of [
+      [0, (bd - t) / 2, bw, t], [0, -(bd - t) / 2, bw, t],
+      [(bw - t) / 2, 0, t, bd - 2 * t], [-(bw - t) / 2, 0, t, bd - 2 * t],
+    ]) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(ww, bh, wd), foamMat)
+      wall.position.set(wx, bh / 2, wz)
+      g.add(wall)
+    }
+    if (hasWater) {
+      const water = new THREE.Mesh(new THREE.BoxGeometry(bw - 2 * t, 0.02, bd - 2 * t), makeWaterMaterial())
+      water.position.y = bh * 0.78
+      g.add(water)
+      waterMeshes.push(water)
+    } else {
+      const inner = new THREE.Mesh(
+        new THREE.BoxGeometry(bw - 2 * t, 0.02, bd - 2 * t),
+        new THREE.MeshStandardMaterial({ color: 0xd8d8d0, roughness: 0.95 })
+      )
+      inner.position.y = t + 0.02
+      g.add(inner)
+    }
+    return g
+  }
+
+  if (kind === 'trash') {
+    // 垃圾桶：開口圓桶
+    const mat = new THREE.MeshStandardMaterial({
+      color: pick([0x3a5a44, 0x4a6a8a, 0x5a5a5a]),
+      roughness: 0.7,
+      side: THREE.DoubleSide,
+    })
+    const wall = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.3, 0.8, 14, 1, true), mat)
+    wall.position.y = 0.4
+    g.add(wall)
+    const base = new THREE.Mesh(new THREE.CircleGeometry(0.3, 14), mat)
+    base.rotation.x = -Math.PI / 2
+    base.position.y = 0.02
+    g.add(base)
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.025, 6, 16), mat)
+    rim.rotation.x = Math.PI / 2
+    rim.position.y = 0.8
+    g.add(rim)
+    if (hasWater) {
+      const water = new THREE.Mesh(new THREE.CircleGeometry(0.32, 14), makeWaterMaterial())
+      water.rotation.x = -Math.PI / 2
+      water.position.y = 0.66
+      g.add(water)
+      waterMeshes.push(water)
+    }
+    return g
+  }
 
   if (kind === 'tire') {
     const tire = new THREE.Mesh(
@@ -748,17 +808,22 @@ function addArcade(scene, px, pz, w, d, dir = 1) {
     }
   }
 
-  return { x: px, z: pz + dir * (d / 2 + depth * 0.6) }
+  return {
+    ground: { x: px, z: pz + dir * (d / 2 + depth * 0.6) },
+    // 遮簷頂面：積水容器（垃圾桶、保麗龍箱等）可能被放在騎樓屋簷上
+    eave: { x: px + rand(-w / 4, w / 4), y: roofH + 0.12, z: pz + dir * (d / 2 + depth / 2) },
+  }
 }
 
 // 連棟透天厝：台灣城市街景的主體。一排 3 戶相連的窄面寬街屋，
 // 各戶樓層數與外牆色略異；屋頂約半數有鐵皮加蓋（無人機空拍最經典的台灣屋頂樣貌），
 // 其餘為女兒牆平屋頂（可作為屋頂積水目標的藏匿點），部分有樓梯間小屋。
-function addRowhouseStrip(scene, colliders, roofSpots, groundSpots, px, pz, sub, facing, caches) {
+function addRowhouseStrip(scene, colliders, roofSpots, groundSpots, eaveSpots, px, pz, sub, facing, caches) {
   const n = 3
   const W = sub * 0.88
   const d = sub * 0.72
   const w = W / n
+  const houses = [] // 記錄各戶高度與屋頂形式，用於找出「建築物之間的簷面」
 
   for (let i = 0; i < n; i++) {
     const hx = px - W / 2 + w * (i + 0.5)
@@ -776,7 +841,9 @@ function addRowhouseStrip(scene, colliders, roofSpots, groundSpots, px, pz, sub,
     colliders.push(box)
 
     const roofY = h + 0.2
-    if (Math.random() < 0.5) {
+    const hasMetal = Math.random() < 0.5
+    houses.push({ hx, h, hasMetal })
+    if (hasMetal) {
       // 鐵皮加蓋：小房間＋微斜鐵皮浪板
       const mat = pick(caches.metalMats)
       const room = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 2.0, d * 0.9), mat)
@@ -824,10 +891,28 @@ function addRowhouseStrip(scene, colliders, roofSpots, groundSpots, px, pz, sub,
     }
   }
 
+  // 建築物之間的簷面：相鄰兩戶高低差夠大時，較低的屋頂靠共用牆處
+  // 形成「夾在建築物之間」的簷面，是容器積水的藏匿點
+  for (let i = 0; i < n - 1; i++) {
+    const a = houses[i]
+    const b = houses[i + 1]
+    if (Math.abs(a.h - b.h) < 2.5) continue
+    const lower = a.h < b.h ? a : b
+    if (lower.hasMetal) continue // 鐵皮加蓋佔據屋頂
+    const wallX = (a.hx + b.hx) / 2
+    const dirToLower = lower.hx < wallX ? -1 : 1
+    eaveSpots.push({
+      x: wallX + dirToLower * 0.7,
+      y: lower.h + 0.2,
+      z: pz + rand(-d / 4, d / 4),
+    })
+  }
+
   // 整排騎樓
   if (Math.random() < 0.45) {
     const spot = addArcade(scene, px, pz, W, d, facing)
-    if (Math.random() < 0.5) groundSpots.push(spot)
+    if (Math.random() < 0.5) groundSpots.push(spot.ground)
+    eaveSpots.push(spot.eave)
   }
 }
 
@@ -1429,6 +1514,7 @@ export function createWorld(scene) {
   const groundSpots = []    // 巷弄/街邊可放容器的位置
   const lotSpots = []       // 雜草空地中心（放廢棄物）
   const siteSpots = []      // 工地內的帆布建材候選位置
+  const eaveSpots = []      // 屋簷上的容器藏匿點（騎樓遮簷、建築物之間的簷面）
 
   let signIdx = 0
   let spawnPoint = null // 保留空地街區（無建築）的實際中心座標，供無人機安全重生用
@@ -1526,7 +1612,7 @@ export function createWorld(scene) {
 
           // 大多數街區是連棟透天厝：壓低天際線，貼近台南真實的城市樣貌
           if (Math.random() < 0.62) {
-            addRowhouseStrip(scene, colliders, roofSpots, groundSpots, px, pz, sub, facing, caches)
+            addRowhouseStrip(scene, colliders, roofSpots, groundSpots, eaveSpots, px, pz, sub, facing, caches)
             continue
           }
 
@@ -1590,7 +1676,8 @@ export function createWorld(scene) {
           // 騎樓：外推遮簷走廊，底下也可能藏著積水容器
           if (h < 16 && Math.random() < 0.4) {
             const spot = addArcade(scene, px, pz, w, d, facing)
-            if (Math.random() < 0.5) groundSpots.push(spot)
+            if (Math.random() < 0.5) groundSpots.push(spot.ground)
+            eaveSpots.push(spot.eave)
           }
         }
       }
@@ -1796,16 +1883,27 @@ export function createWorld(scene) {
   place(sites, 4, true, 'tarp', makeTarpPile)
   place(sites, 3, false, 'tarp', makeTarpPile)
 
+  // 一般積水容器：一部分放在屋簷上（騎樓遮簷、不同高度建築之間的簷面），
+  // 簷面上的容器偏向垃圾桶／保麗龍箱（風吹上去或被丟棄的輕型容器）；其餘放地面。
   const grounds = shuffle(groundSpots)
-  place(grounds, 6, true, 'container', makeContainer)
-  place(grounds, 6, false, 'container', makeContainer)
+  const eaves = shuffle(eaveSpots)
+  const eavePos = (s) => ({ x: s.x, y: s.y, z: s.z, makeArg: ['foam', 'trash', 'bucket'] })
+  place(eaves, 3, true, 'container', makeContainer, eavePos)
+  place(eaves, 2, false, 'container', makeContainer, eavePos)
+  place(grounds, 3, true, 'container', makeContainer)
+  place(grounds, 4, false, 'container', makeContainer)
 
   // 空地不夠時（隨機生成的城市空地數量偏少），用街邊位置補足
   const debrisPlaced = targets.filter((t) => t.type === 'debris').length
   if (debrisPlaced < 5) place(grounds, 5 - debrisPlaced, true, 'debris', makeDebris)
-  const containerPlaced = targets.filter((t) => t.type === 'container').length
+  let containerPlaced = targets.filter((t) => t.type === 'container').length
   if (containerPlaced < 6) {
-    // 用尚未被其他目標使用的屋頂位置補足（兩池剩餘的部分）
+    // 簷面位置不足時先用地面位置補足
+    place(grounds, 6 - containerPlaced, true, 'container', makeContainer)
+    containerPlaced = targets.filter((t) => t.type === 'container').length
+  }
+  if (containerPlaced < 6) {
+    // 再不夠時用尚未被其他目標使用的屋頂位置補足（兩池剩餘的部分）
     const extra = shuffle([...smallRoofs, ...bigRoofs])
     place(extra, 6 - containerPlaced, true, 'container', makeContainer, centerPos)
   }
@@ -1847,7 +1945,17 @@ export function makePreviewObject(type) {
       g.add(gutter)
       return g
     }
-    case 'container': return makeContainer(true, sink)
+    case 'container': {
+      // 縮圖同時呈現兩種新容器：積水的保麗龍箱＋旁邊的垃圾桶
+      const g = new THREE.Group()
+      const foam = makeContainer(true, sink, ['foam'])
+      foam.position.x = -0.45
+      g.add(foam)
+      const trash = makeContainer(false, sink, ['trash'])
+      trash.position.set(0.55, 0, -0.1)
+      g.add(trash)
+      return g
+    }
     default: return new THREE.Group()
   }
 }
