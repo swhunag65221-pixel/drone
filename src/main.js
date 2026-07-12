@@ -84,7 +84,7 @@ const INTRO_CARDS = [
   { type: 'tower', hint: '不鏽鋼水塔沒有頂蓋、看得到水面反光的才是目標；有錐形蓋的是誘餌。', where: '大樓屋頂（要飛到上方看）' },
   { type: 'tarp', hint: '藍白條紋帆布蓋著建材堆，帆布凹陷處積水。', where: '工地圍籬內的地面' },
   { type: 'debris', hint: '廢棄雜物堆旁邊的一灘積水。', where: '有圍牆的空地' },
-  { type: 'roofGarden', hint: '屋頂花園的花盆之間藏著一灘積水。', where: '大樓屋頂' },
+  { type: 'roofGarden', hint: '整片綠化的空中花園，積水藏在花盆、水桶、澆花器等容器裡。', where: '大樓屋頂（整片綠色的那種）' },
   { type: 'gutter', hint: '屋頂邊緣的長條排水槽，落葉堵塞後積水。', where: '透天厝屋頂的四邊' },
   { type: 'container', hint: '水桶、水盆、輪胎裡的積水。', where: '巷弄、中庭、騎樓下' },
 ]
@@ -93,7 +93,7 @@ const PREVIEW_VIEWS = {
   tower: { pos: [5.5, 6.5, 5.5], look: [0, 3, 0] },
   tarp: { pos: [3.5, 3, 3.5], look: [0, 0.7, 0] },
   debris: { pos: [4, 3.5, 4], look: [0, 0.5, 0] },
-  roofGarden: { pos: [3.5, 3.5, 3.5], look: [0, 0.5, 0] },
+  roofGarden: { pos: [5.2, 4.6, 5.2], look: [0, 0.2, 0] },
   gutter: { pos: [3.8, 3.4, 4.4], look: [0, 0.4, 0.6] },
   container: { pos: [2.2, 2, 2.2], look: [0, 0.4, 0] },
 }
