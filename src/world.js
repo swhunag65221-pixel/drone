@@ -297,45 +297,157 @@ function makeGutter(hasWater, waterMeshes, length = 3.2) {
   return g
 }
 
-// 屋頂花園：花盆綠意間藏著積水
-function makeRoofGarden(hasWater, waterMeshes) {
+// 澆花器：壺身＋壺嘴＋提把，hasWater 時開口有水面
+function makeWateringCan(hasWater, waterMeshes, scale = 1) {
+  const can = new THREE.Group()
+  const canMat = new THREE.MeshStandardMaterial({
+    color: pick([0x4a8a5a, 0x3f6db3, 0xc9c9c9]),
+    roughness: 0.5, metalness: 0.4, side: THREE.DoubleSide,
+  })
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.5, 12, 1, true), canMat)
+  body.position.y = 0.25
+  can.add(body)
+  const bottom = new THREE.Mesh(new THREE.CircleGeometry(0.3, 12), canMat)
+  bottom.rotation.x = -Math.PI / 2
+  bottom.position.y = 0.01
+  can.add(bottom)
+  const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.055, 0.55, 8), canMat)
+  spout.position.set(0.42, 0.42, 0)
+  spout.rotation.z = -0.9
+  can.add(spout)
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.03, 6, 14, Math.PI), canMat)
+  handle.position.set(-0.26, 0.42, 0)
+  handle.rotation.y = Math.PI / 2
+  handle.rotation.z = Math.PI / 2
+  can.add(handle)
+  if (hasWater) {
+    const water = new THREE.Mesh(new THREE.CircleGeometry(0.22, 12), makeWaterMaterial())
+    water.rotation.x = -Math.PI / 2
+    water.position.y = 0.42
+    can.add(water)
+    waterMeshes.push(water)
+  }
+  can.scale.setScalar(scale)
+  return can
+}
+
+// 空中花園：綠化涵蓋整個屋頂——草皮鋪面、兩側長條花圃、散落的花盆與園藝用具。
+// 積水藏在花盆、水桶、澆花器等容器中（目標有水、誘餌乾涸）。
+// dims 為可用的屋頂範圍 { w, d }。
+function makeRoofGarden(hasWater, waterMeshes, dims) {
+  const w = dims?.w ?? 5.6
+  const d = dims?.d ?? 4.6
   const g = new THREE.Group()
-  const potMat = new THREE.MeshStandardMaterial({ color: 0x8a6b4a, roughness: 0.9 })
+
+  const potMat = new THREE.MeshStandardMaterial({ color: 0x9c5a3c, roughness: 0.9 })
   const leafMats = [
     new THREE.MeshStandardMaterial({ color: 0x4c8a3f, roughness: 0.95 }),
     new THREE.MeshStandardMaterial({ color: 0x5a9c4a, roughness: 0.95 }),
     new THREE.MeshStandardMaterial({ color: 0x3f7d3a, roughness: 0.95 }),
   ]
+  const flowerMats = [
+    new THREE.MeshStandardMaterial({ color: 0xd05a8a, roughness: 0.8 }),
+    new THREE.MeshStandardMaterial({ color: 0xe8c93f, roughness: 0.8 }),
+    new THREE.MeshStandardMaterial({ color: 0xd04a3a, roughness: 0.8 }),
+  ]
 
-  const deck = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.9, 1.9, 0.12, 16),
-    new THREE.MeshStandardMaterial({ color: 0x9a9488, roughness: 0.9 })
+  // 草皮鋪面涵蓋整個屋頂
+  const lawn = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, d),
+    new THREE.MeshStandardMaterial({ color: 0x7da85f, roughness: 0.95 })
   )
-  deck.position.y = 0.06
-  g.add(deck)
+  lawn.rotation.x = -Math.PI / 2
+  lawn.position.y = 0.03
+  g.add(lawn)
 
-  const n = 4 + Math.floor(Math.random() * 3)
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + rand(-0.3, 0.3)
-    const r = rand(0.8, 1.6)
-    const px = Math.cos(a) * r
-    const pz = Math.sin(a) * r
-    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.35, 10), potMat)
-    pot.position.set(px, 0.3, pz)
+  // 兩側長條花圃＋灌木
+  const planterMat = new THREE.MeshStandardMaterial({ color: 0x8a6b4a, roughness: 0.9 })
+  for (const zSign of [-1, 1]) {
+    const planter = new THREE.Mesh(new THREE.BoxGeometry(w * 0.82, 0.4, 0.65), planterMat)
+    planter.position.set(0, 0.23, zSign * (d / 2 - 0.42))
+    g.add(planter)
+    const nBush = Math.max(3, Math.round(w / 1.7))
+    for (let i = 0; i < nBush; i++) {
+      const bush = new THREE.Mesh(new THREE.SphereGeometry(rand(0.26, 0.38), 8, 6), pick(leafMats))
+      bush.scale.y = 0.75
+      bush.position.set(-w * 0.36 + (i + 0.5) * (w * 0.72 / nBush), 0.55, zSign * (d / 2 - 0.42))
+      g.add(bush)
+    }
+  }
+
+  // 散落的花盆（部分開花）
+  const potCount = Math.max(4, Math.round((w * d) / 9))
+  for (let i = 0; i < potCount; i++) {
+    const pr = rand(0.2, 0.32)
+    const px = rand(-(w / 2 - 0.8), w / 2 - 0.8)
+    const pz = rand(-(d / 2 - 1.4), d / 2 - 1.4)
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(pr, pr * 0.78, pr * 1.2, 10), potMat)
+    pot.position.set(px, pr * 0.6, pz)
     g.add(pot)
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(rand(0.28, 0.4), 8, 6), pick(leafMats))
-    leaf.position.set(px, 0.62, pz)
-    leaf.scale.y = 0.8
-    g.add(leaf)
+    const top = Math.random() < 0.35
+      ? new THREE.Mesh(new THREE.SphereGeometry(pr * 0.75, 8, 6), pick(flowerMats))
+      : new THREE.Mesh(new THREE.SphereGeometry(pr * 1.05, 8, 6), pick(leafMats))
+    top.position.set(px, pr * 1.2 + pr * 0.7, pz)
+    top.scale.y = 0.8
+    g.add(top)
   }
 
-  if (hasWater) {
-    const water = new THREE.Mesh(new THREE.CircleGeometry(1.1, 16), makeWaterMaterial())
-    water.rotation.x = -Math.PI / 2
-    water.position.set(rand(-0.3, 0.3), 0.13, rand(-0.3, 0.3))
-    g.add(water)
-    waterMeshes.push(water)
+  // 造景用的乾澆花器
+  const decoCan = makeWateringCan(false, waterMeshes, 0.9)
+  decoCan.position.set(rand(-(w / 2 - 1), w / 2 - 1), 0.03, rand(-(d / 2 - 1.5), d / 2 - 1.5))
+  decoCan.rotation.y = rand(0, Math.PI * 2)
+  g.add(decoCan)
+
+  // 指定的積水容器（目標有水、誘餌乾涸），放在屋頂中央附近方便發現與點擊
+  const kind = pick(['pot', 'bucket', 'can'])
+  const cx2 = rand(-1.2, 1.2)
+  const cz2 = rand(-1.0, 1.0)
+  if (kind === 'pot') {
+    // 大陶盆（沒有種植物，正好積水）
+    const bigPot = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 0.44, 0.6, 14, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x9c5a3c, roughness: 0.9, side: THREE.DoubleSide })
+    )
+    bigPot.position.set(cx2, 0.3, cz2)
+    g.add(bigPot)
+    const potBase = new THREE.Mesh(new THREE.CircleGeometry(0.44, 14), potMat)
+    potBase.rotation.x = -Math.PI / 2
+    potBase.position.set(cx2, 0.04, cz2)
+    g.add(potBase)
+    if (hasWater) {
+      const water = new THREE.Mesh(new THREE.CircleGeometry(0.48, 14), makeWaterMaterial())
+      water.rotation.x = -Math.PI / 2
+      water.position.set(cx2, 0.48, cz2)
+      g.add(water)
+      waterMeshes.push(water)
+    }
+  } else if (kind === 'bucket') {
+    const bucketMat = new THREE.MeshStandardMaterial({
+      color: pick([0x3f6db3, 0xb33f3f, 0x3fb35f]),
+      roughness: 0.7, side: THREE.DoubleSide,
+    })
+    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.33, 0.6, 14, 1, true), bucketMat)
+    bucket.position.set(cx2, 0.3, cz2)
+    g.add(bucket)
+    const bucketBase = new THREE.Mesh(new THREE.CircleGeometry(0.33, 14), bucketMat)
+    bucketBase.rotation.x = -Math.PI / 2
+    bucketBase.position.set(cx2, 0.04, cz2)
+    g.add(bucketBase)
+    if (hasWater) {
+      const water = new THREE.Mesh(new THREE.CircleGeometry(0.35, 14), makeWaterMaterial())
+      water.rotation.x = -Math.PI / 2
+      water.position.set(cx2, 0.48, cz2)
+      g.add(water)
+      waterMeshes.push(water)
+    }
+  } else {
+    // 大澆花器（開口積水）
+    const bigCan = makeWateringCan(hasWater, waterMeshes, 1.5)
+    bigCan.position.set(cx2, 0.03, cz2)
+    bigCan.rotation.y = rand(0, Math.PI * 2)
+    g.add(bigCan)
   }
+
   return g
 }
 
@@ -1575,7 +1687,7 @@ export function createWorld(scene) {
     for (let i = 0; i < count && spotList.length > 0; i++) {
       const spot = spotList.pop()
       const p = posFn ? posFn(spot) : { x: spot.x, y: 0.2, z: spot.z }
-      const obj = makeFn(hasWater, waterMeshes, p.edgeLength)
+      const obj = makeFn(hasWater, waterMeshes, p.makeArg !== undefined ? p.makeArg : p.edgeLength)
       obj.position.set(p.x, p.y, p.z)
       obj.rotation.y = p.rotY !== undefined ? p.rotY : rand(0, Math.PI * 2)
       scene.add(obj)
@@ -1651,8 +1763,15 @@ export function createWorld(scene) {
   place(bigRoofs, 5, true, 'tower', makeWaterTower, centerPos)   // 目標
   place(bigRoofs, 4, false, 'tower', makeWaterTower, centerPos)  // 誘餌（有蓋）
 
-  place(bigRoofs, 4, true, 'roofGarden', makeRoofGarden, centerPos)
-  place(bigRoofs, 3, false, 'roofGarden', makeRoofGarden, centerPos)
+  // 空中花園涵蓋整個屋頂：把可用屋頂範圍傳給產生器，點擊判定半徑也隨屋頂放大
+  const gardenPos = (s) => ({
+    x: s.x, y: s.y, z: s.z, rotY: 0,
+    makeArg: { w: s.w - 1.2, d: s.d - 1.2 },
+    proxyRadius: Math.max(2.2, Math.min(s.w, s.d) / 2),
+  })
+
+  place(bigRoofs, 4, true, 'roofGarden', makeRoofGarden, gardenPos)
+  place(bigRoofs, 3, false, 'roofGarden', makeRoofGarden, gardenPos)
 
   place(smallRoofs, 4, true, 'gutter', makeGutter, gutterPos)
   place(smallRoofs, 3, false, 'gutter', makeGutter, gutterPos)
@@ -1661,7 +1780,7 @@ export function createWorld(scene) {
   const towersPlaced = targets.filter((t) => t.type === 'tower').length
   if (towersPlaced < 5) place(smallRoofs, 5 - towersPlaced, true, 'tower', makeWaterTower, centerPos)
   const gardensPlaced = targets.filter((t) => t.type === 'roofGarden').length
-  if (gardensPlaced < 4) place(smallRoofs, 4 - gardensPlaced, true, 'roofGarden', makeRoofGarden, centerPos)
+  if (gardensPlaced < 4) place(smallRoofs, 4 - gardensPlaced, true, 'roofGarden', makeRoofGarden, gardenPos)
   const guttersPlaced = targets.filter((t) => t.type === 'gutter').length
   if (guttersPlaced < 4) place(bigRoofs, 4 - guttersPlaced, true, 'gutter', makeGutter, gutterPos)
 
@@ -1701,7 +1820,7 @@ export function makePreviewObject(type) {
     case 'tower': return makeWaterTower(true, sink)
     case 'tarp': return makeTarpPile(true, sink)
     case 'debris': return makeDebris(true, sink)
-    case 'roofGarden': return makeRoofGarden(true, sink)
+    case 'roofGarden': return makeRoofGarden(true, sink, { w: 6.4, d: 5.2 })
     case 'gutter': {
       // 雨水槽只出現在屋頂邊緣：縮圖用一小塊帶女兒牆的屋頂平台呈現真實情境
       const g = new THREE.Group()
