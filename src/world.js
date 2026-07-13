@@ -1454,7 +1454,8 @@ function makeSwingSet() {
     for (const lean of [-1, 1]) {
       const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6), frameMat)
       leg.position.set(side * 1.5, 1.1, lean * 0.55)
-      leg.rotation.x = lean * 0.42
+      // A 字形：柱頂在橫桿下方會合、柱腳向外張開（傾斜方向與腳位偏移相反）
+      leg.rotation.x = -lean * 0.42
       g.add(leg)
     }
   }
