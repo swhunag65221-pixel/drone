@@ -71,8 +71,8 @@ const $ = (id) => document.getElementById(id)
 const ui = {
   hud: $('hud'), timer: $('timer'), score: $('score'), found: $('found'),
   crosshair: $('crosshair'), hint: $('hint'), feed: $('feed'), alt: $('alt'),
-  startOverlay: $('startOverlay'), pauseOverlay: $('pauseOverlay'), endOverlay: $('endOverlay'),
-  introOverlay: $('introOverlay'), introGrid: $('introGrid'), introStartBtn: $('introStartBtn'),
+  pauseOverlay: $('pauseOverlay'), endOverlay: $('endOverlay'),
+  practiceUI: $('practiceUI'), introGrid: $('introGrid'),
   startBtn: $('startBtn'), resumeBtn: $('resumeBtn'), restartBtn: $('restartBtn'),
   reviewBtn: $('reviewBtn'), reviewBanner: $('reviewBanner'),
   finalScore: $('finalScore'), rank: $('rank'), breakdown: $('breakdown'),
@@ -145,7 +145,8 @@ function buildIntroCards() {
 }
 
 // ---------- 遊戲狀態 ----------
-let state = 'start'   // start | playing | paused | ended | review（結束後自由飛行複盤）
+// practice：開場練習模式（自由試飛、標記不計分），按「遊戲開始」才進入 playing
+let state = 'practice'   // practice | playing | paused | ended | review（結束後自由飛行複盤）
 let timeLeft = GAME_TIME
 let score = 0
 let foundCount = 0
@@ -172,17 +173,48 @@ function lockPointer() {
   renderer.domElement.requestPointerLock()
 }
 
-ui.startBtn.addEventListener('click', () => {
-  ui.startOverlay.classList.add('hidden')
-  buildIntroCards()
-  ui.introOverlay.classList.remove('hidden')
+// 進入練習模式：世界已就緒，玩家點擊畫面即可鎖定指標自由試飛（不計分）
+function enterPractice() {
+  state = 'practice'
+  timeLeft = GAME_TIME
+  score = 0
+  foundCount = 0
+  markCooldown = 0
+  ui.feed.innerHTML = ''
+  ui.endOverlay.classList.add('hidden')
+  ui.pauseOverlay.classList.add('hidden')
+  ui.reviewBanner.classList.add('hidden')
+  ui.practiceUI.classList.remove('hidden')
+  ui.hud.classList.remove('hidden')
+  ui.hud.classList.add('practice')
+  updateHUD()
+}
+
+// 正式開始：重建世界（練習時標記過的地點全部重置），開始計時計分
+function startGame() {
+  if (state !== 'practice') return
+  buildWorld()
+  drone.reset(spawnPoint)
+  timeLeft = GAME_TIME
+  score = 0
+  foundCount = 0
+  markCooldown = 0
+  ui.feed.innerHTML = ''
+  ui.practiceUI.classList.add('hidden')
+  ui.hud.classList.remove('practice')
+  state = 'playing'
+  updateHUD()
+  lockPointer()
+}
+
+ui.startBtn.addEventListener('click', startGame)
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startGame()
 })
 
-ui.introStartBtn.addEventListener('click', () => {
-  ui.introOverlay.classList.add('hidden')
-  ui.hud.classList.remove('hidden')
-  state = 'playing'
-  lockPointer()
+// 練習模式中點擊畫面（尚未鎖定指標時）→ 鎖定指標開始試飛
+renderer.domElement.addEventListener('click', () => {
+  if (state === 'practice' && document.pointerLockElement !== renderer.domElement) lockPointer()
 })
 
 ui.resumeBtn.addEventListener('click', () => {
@@ -230,7 +262,7 @@ function castAtCrosshair() {
 }
 
 window.addEventListener('mousedown', (e) => {
-  if (state !== 'playing' || e.button !== 0 || markCooldown > 0) return
+  if ((state !== 'playing' && state !== 'practice') || e.button !== 0 || markCooldown > 0) return
   if (document.pointerLockElement !== renderer.domElement) return
   markCooldown = MARK_COOLDOWN
 
@@ -245,6 +277,17 @@ window.addEventListener('mousedown', (e) => {
   data.done = true
   const worldPos = new THREE.Vector3()
   data.group.getWorldPosition(worldPos)
+
+  // 練習模式：一樣可以標記並看到結果，但不計分（正式開始時世界會重建）
+  if (state === 'practice') {
+    const isTarget = data.kind === 'target'
+    const marker = makeFoundMarker(isTarget)
+    marker.position.copy(worldPos)
+    worldGroup.add(marker)
+    if (isTarget) addFeed(`✔（練習）發現${data.label}！正式任務可得 +${data.points} 分`)
+    else addFeed('✘（練習）這裡沒有積水，正式任務會扣 5 分', true)
+    return
+  }
 
   if (data.kind === 'target') {
     data.found = true
@@ -305,21 +348,7 @@ function endGame() {
 function startNewRound() {
   buildWorld()
   drone.reset(spawnPoint)
-
-  state = 'start'
-  timeLeft = GAME_TIME
-  score = 0
-  foundCount = 0
-  markCooldown = 0
-
-  ui.feed.innerHTML = ''
-  ui.endOverlay.classList.add('hidden')
-  ui.pauseOverlay.classList.add('hidden')
-  ui.introOverlay.classList.add('hidden')
-  ui.reviewBanner.classList.add('hidden')
-  ui.hud.classList.add('hidden')
-  ui.startOverlay.classList.remove('hidden')
-  updateHUD()
+  enterPractice()
 }
 
 function rankFor(s) {
@@ -368,12 +397,23 @@ function animate() {
     // 複盤模式：自由飛行查看未找到的積水，不計時、不計分
     drone.update(dt, colliders)
     updateHUD()
+  } else if (state === 'practice') {
+    // 練習模式：自由試飛＋可標記（不計分、不倒數）
+    markCooldown = Math.max(0, markCooldown - rawDt)
+    drone.update(dt, colliders)
+    const hit = castAtCrosshair()
+    const aiming = hit && hit.distance <= MARK_RANGE
+    ui.crosshair.classList.toggle('lock', !!aiming)
+    ui.hint.classList.toggle('hidden', !aiming)
+    updateHUD()
   }
 
   renderer.render(scene, camera)
 }
 
-updateHUD()
+// 開場即進入練習模式：先渲染圖鑑縮圖（右側欄），再顯示介面
+buildIntroCards()
+enterPractice()
 animate()
 
 // 自動化測試用掛鉤
