@@ -1312,6 +1312,239 @@ function makeBoat() {
   return g
 }
 
+// 公園涼亭：方形四柱＋攢尖紅瓦頂
+function makePavilion() {
+  const g = new THREE.Group()
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0xbfb6a6, roughness: 0.9 })
+  const base = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.24, 3.6), baseMat)
+  base.position.y = 0.12
+  g.add(base)
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x8a4a3a, roughness: 0.7 })
+  for (const px of [-1.3, 1.3]) {
+    for (const pz of [-1.3, 1.3]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.3, 8), postMat)
+      post.position.set(px, 0.24 + 1.15, pz)
+      g.add(post)
+    }
+  }
+  // 亭內環形座椅
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0xa87a52, roughness: 0.8 })
+  for (const [sx, sz, w, d] of [[0, -1.05, 2.2, 0.35], [-1.05, 0, 0.35, 2.2], [1.05, 0, 0.35, 2.2]]) {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(w, 0.1, d), seatMat)
+    seat.position.set(sx, 0.68, sz)
+    g.add(seat)
+  }
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x8a3a2a, roughness: 0.75 })
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(2.9, 1.5, 4), roofMat)
+  roof.rotation.y = Math.PI / 4
+  roof.position.y = 2.54 + 0.75
+  g.add(roof)
+  const finial = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), roofMat)
+  finial.position.y = 2.54 + 1.5
+  g.add(finial)
+  return g
+}
+
+// 兒童溜滑梯：階梯＋平台＋斜滑道，配色鮮豔
+function makeSlide() {
+  const g = new THREE.Group()
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x4a7ab5, roughness: 0.5 })
+  const slideMat = new THREE.MeshStandardMaterial({ color: 0xe0563a, roughness: 0.4 })
+  // 平台與四腳
+  for (const px of [-0.55, 0.55]) {
+    for (const pz of [-0.55, 0.55]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.5, 6), frameMat)
+      leg.position.set(px, 0.75, pz)
+      g.add(leg)
+    }
+  }
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.1, 1.3), frameMat)
+  platform.position.y = 1.5
+  g.add(platform)
+  // 平台小屋頂
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.05, 0.6, 4), slideMat)
+  cap.rotation.y = Math.PI / 4
+  cap.position.y = 2.5
+  g.add(cap)
+  for (const px of [-0.5, 0.5]) {
+    for (const pz of [-0.5, 0.5]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 6), frameMat)
+      post.position.set(px, 1.9, pz)
+      g.add(post)
+    }
+  }
+  // 滑道（斜面）
+  const chute = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 2.6), slideMat)
+  chute.rotation.x = 0.62
+  chute.position.set(0, 0.85, 1.65)
+  g.add(chute)
+  // 階梯（另一側）
+  const stepMat = new THREE.MeshStandardMaterial({ color: 0xf0c040, roughness: 0.5 })
+  for (let i = 0; i < 4; i++) {
+    const step = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.07, 0.25), stepMat)
+    step.position.set(0, 0.35 + i * 0.38, -0.75 - (3 - i) * 0.22)
+    g.add(step)
+  }
+  return g
+}
+
+// 盪鞦韆：A 字架＋兩個吊座
+function makeSwingSet() {
+  const g = new THREE.Group()
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x3a8a5a, roughness: 0.5 })
+  for (const side of [-1, 1]) {
+    for (const lean of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.5, 6), frameMat)
+      leg.position.set(side * 1.5, 1.1, lean * 0.55)
+      leg.rotation.x = lean * 0.42
+      g.add(leg)
+    }
+  }
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 3.1, 6), frameMat)
+  bar.rotation.z = Math.PI / 2
+  bar.position.y = 2.25
+  g.add(bar)
+  const ropeMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8 })
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0xf0c040, roughness: 0.5 })
+  for (const sx of [-0.7, 0.7]) {
+    for (const rx of [-0.2, 0.2]) {
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.55, 4), ropeMat)
+      rope.position.set(sx + rx, 1.45, 0)
+      g.add(rope)
+    }
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.24), seatMat)
+    seat.position.set(sx, 0.65, 0)
+    g.add(seat)
+  }
+  return g
+}
+
+// 公園長椅
+function makeBench() {
+  const g = new THREE.Group()
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x9a6a4a, roughness: 0.8 })
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.7 })
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 0.45), woodMat)
+  seat.position.y = 0.45
+  g.add(seat)
+  const back = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 0.07), woodMat)
+  back.position.set(0, 0.78, -0.2)
+  back.rotation.x = -0.12
+  g.add(back)
+  for (const lx of [-0.6, 0.6]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.45, 0.4), legMat)
+    leg.position.set(lx, 0.22, 0)
+    g.add(leg)
+  }
+  return g
+}
+
+// 社區公園：草皮、十字步道、涼亭、兒童遊樂區、綠籬與環繞樹木。
+// 回傳公園角落的廢棄物堆候選位置（公園疏於整理的角落是常見孳生源）。
+function addPark(scene, colliders, cx, cz) {
+  // 草皮鋪面
+  const lawn = new THREE.Mesh(
+    new THREE.PlaneGeometry(BLOCK - 0.8, BLOCK - 0.8),
+    new THREE.MeshStandardMaterial({ color: 0x6f9c55, roughness: 0.95 })
+  )
+  lawn.rotation.x = -Math.PI / 2
+  lawn.position.set(cx, 0.21, cz)
+  lawn.receiveShadow = true
+  scene.add(lawn)
+
+  // 十字步道與中央小廣場
+  const pathMat = new THREE.MeshStandardMaterial({ color: 0xcac0a8, roughness: 0.95 })
+  for (const [w, d] of [[BLOCK - 1, 2.2], [2.2, BLOCK - 1]]) {
+    const path = new THREE.Mesh(new THREE.PlaneGeometry(w, d), pathMat)
+    path.rotation.x = -Math.PI / 2
+    path.position.set(cx, 0.225, cz)
+    scene.add(path)
+  }
+  const plaza = new THREE.Mesh(new THREE.CircleGeometry(3.0, 24), pathMat)
+  plaza.rotation.x = -Math.PI / 2
+  plaza.position.set(cx, 0.226, cz)
+  scene.add(plaza)
+
+  // 四邊綠籬（每邊中央留出入口，銜接十字步道）
+  const hedgeMat = new THREE.MeshStandardMaterial({ color: 0x4a7a3a, roughness: 0.95 })
+  const hh = BLOCK / 2 - 0.8
+  const seg = (BLOCK - 1.6 - 3.2) / 2
+  const off = 1.6 + seg / 2
+  for (const side of [-1, 1]) {
+    for (const half of [-1, 1]) {
+      const hedgeH = new THREE.Mesh(new THREE.BoxGeometry(seg, 0.6, 0.6), hedgeMat)
+      hedgeH.position.set(cx + half * off, 0.5, cz + side * hh)
+      scene.add(hedgeH)
+      const hedgeV = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, seg), hedgeMat)
+      hedgeV.position.set(cx + side * hh, 0.5, cz + half * off)
+      scene.add(hedgeV)
+    }
+  }
+
+  // 涼亭（西南象限）
+  const pavilion = makePavilion()
+  pavilion.position.set(cx - 6.5, 0.2, cz - 6.5)
+  pavilion.rotation.y = rand(0, Math.PI * 2)
+  scene.add(pavilion)
+  const pavBox = new THREE.Box3().setFromObject(pavilion)
+  pavBox.expandByScalar(0.6)
+  colliders.push(pavBox)
+
+  // 兒童遊樂區（東北象限）：沙坑＋溜滑梯＋盪鞦韆
+  const sand = new THREE.Mesh(
+    new THREE.CircleGeometry(4.8, 24),
+    new THREE.MeshStandardMaterial({ color: 0xdac9a0, roughness: 0.98 })
+  )
+  sand.rotation.x = -Math.PI / 2
+  sand.position.set(cx + 6.2, 0.224, cz + 5.8)
+  scene.add(sand)
+
+  const slide = makeSlide()
+  slide.position.set(cx + 4.6, 0.22, cz + 7.2)
+  slide.rotation.y = rand(0, Math.PI * 2)
+  scene.add(slide)
+  const slideBox = new THREE.Box3().setFromObject(slide)
+  slideBox.expandByScalar(0.5)
+  colliders.push(slideBox)
+
+  const swing = makeSwingSet()
+  swing.position.set(cx + 8.2, 0.22, cz + 3.6)
+  swing.rotation.y = rand(-0.4, 0.4)
+  scene.add(swing)
+  const swingBox = new THREE.Box3().setFromObject(swing)
+  swingBox.expandByScalar(0.5)
+  colliders.push(swingBox)
+
+  // 長椅（面向中央廣場）
+  for (const [bx2, bz2, ry] of [[cx - 4.2, cz + 1.6, Math.PI], [cx + 1.6, cz - 4.2, Math.PI / 2]]) {
+    const bench = makeBench()
+    bench.position.set(bx2, 0.22, bz2)
+    bench.rotation.y = ry
+    scene.add(bench)
+  }
+
+  // 環繞樹木（增加綠蔭；混入榕樹）
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2 + rand(-0.15, 0.15)
+    const r = rand(9.2, 11)
+    const tx = cx + Math.cos(ang) * r
+    const tz = cz + Math.sin(ang) * r
+    // 避開出入口步道
+    if (Math.abs(tx - cx) < 2.2 || Math.abs(tz - cz) < 2.2) continue
+    const tree = Math.random() < 0.35 ? makeBanyanTree() : makeTree()
+    tree.position.set(tx, 0.2, tz)
+    scene.add(tree)
+  }
+
+  // 廢棄物堆候選位置：公園四個角落（綠籬內側、樹蔭下的疏忽角落）
+  return [
+    { x: cx - 9.6 + rand(-0.6, 0.6), z: cz + 9.6 + rand(-0.6, 0.6) },
+    { x: cx + 9.6 + rand(-0.6, 0.6), z: cz - 9.6 + rand(-0.6, 0.6) },
+    { x: cx - 9.6 + rand(-0.6, 0.6), z: cz - 9.9 + rand(-0.4, 0.4) },
+    { x: cx + 10 + rand(-0.4, 0.4), z: cz + 9.9 + rand(-0.4, 0.4) },
+  ]
+}
+
 // 燕尾脊裝飾：在屋簷四個角落加上向上翹起的裝飾，共用於廟宇與地標建築
 function addSwallowWings(group, eaveW, eaveD, y, roofMat) {
   const wingGeo = new THREE.BoxGeometry(0.2, 0.9, 0.2)
@@ -1485,21 +1718,50 @@ export function createWorld(scene) {
   canalWater.position.set(0, 0.05, canalZ)
   scene.add(canalWater)
 
-  // 堤岸
+  // 堤岸：分段建置，橋樑經過處中斷（路面直接銜接橋面，不被堤岸牆擋住）
   const embankMat = new THREE.MeshStandardMaterial({ color: 0xb7ab94, roughness: 0.9 })
-  for (const side of [-1, 1]) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(canalLen, 0.9, 0.6), embankMat)
-    wall.position.set(0, 0.45, canalZ + side * (canalWidth / 2 + 0.3))
-    scene.add(wall)
+  {
+    const bridgeXs = Array.from({ length: GRID }, (_, k) => -HALF + (k + 1) * PITCH - STREET / 2)
+    let prev = -canalLen / 2
+    const spans = []
+    for (const bx of bridgeXs) {
+      spans.push([prev, bx - STREET / 2])
+      prev = bx + STREET / 2
+    }
+    spans.push([prev, canalLen / 2])
+    for (const [x0, x1] of spans) {
+      const len = x1 - x0
+      if (len <= 0.5) continue
+      for (const side of [-1, 1]) {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.6), embankMat)
+        wall.position.set((x0 + x1) / 2, 0.45, canalZ + side * (canalWidth / 2 + 0.3))
+        scene.add(wall)
+      }
+    }
   }
 
-  // 跨運河橋樑（對應每條南北向街道）
-  const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.8 })
+  // 跨運河橋樑（對應每條南北向街道）：柏油橋面，與兩端路面齊平
+  const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x45403a, roughness: 0.95 })
+  const railMat = new THREE.MeshStandardMaterial({ color: 0xcfcfc8, roughness: 0.7 })
+  const bridgeLineMat = new THREE.MeshBasicMaterial({ color: 0xd8d8c8 })
   for (let j = 1; j <= GRID; j++) {
     const bx = -HALF + j * PITCH - STREET / 2
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(STREET, 0.3, canalWidth + 1.2), bridgeMat)
-    bridge.position.set(bx, 0.35, canalZ)
+    // 橋面頂高 0.07：略高於運河水面（0.05）、與路面（0）視覺上齊平無落差
+    const deckTop = 0.07
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(STREET, 0.45, canalWidth + 1.2), bridgeMat)
+    bridge.position.set(bx, deckTop - 0.225, canalZ)
     scene.add(bridge)
+    // 橋面上的道路中線（銜接兩端街道的白線）
+    const deckLine = new THREE.Mesh(new THREE.PlaneGeometry(0.35, canalWidth + 1.2), bridgeLineMat)
+    deckLine.rotation.x = -Math.PI / 2
+    deckLine.position.set(bx, deckTop + 0.01, canalZ)
+    scene.add(deckLine)
+    // 兩側低欄杆
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.8, canalWidth + 1.2), railMat)
+      rail.position.set(bx + side * (STREET / 2 - 0.2), deckTop + 0.4, canalZ)
+      scene.add(rail)
+    }
   }
 
   // 運河上的小船
@@ -1512,7 +1774,7 @@ export function createWorld(scene) {
 
   const roofSpots = []      // 可放水塔的屋頂 {x, y, z}
   const groundSpots = []    // 巷弄/街邊可放容器的位置
-  const lotSpots = []       // 雜草空地中心（放廢棄物）
+  const lotSpots = []       // 公園角落的廢棄物藏匿點
   const siteSpots = []      // 工地內的帆布建材候選位置
   const eaveSpots = []      // 屋簷上的容器藏匿點（騎樓遮簷、建築物之間的簷面）
 
@@ -1545,7 +1807,7 @@ export function createWorld(scene) {
       pad.receiveShadow = true
       scene.add(pad)
 
-      // 中央街區留空當出發廣場，並放置赤崁樓地標；3 個街區是工地；其餘 ~14% 是雜草空地
+      // 中央街區留空當出發廣場，並放置赤崁樓地標；3 個街區是工地；其餘 ~14% 是社區公園
       if (isCenter) {
         const landmark = makeChihkanTower()
         landmark.position.set(cx, 0.2, cz - 7)
@@ -1561,23 +1823,9 @@ export function createWorld(scene) {
         continue
       }
       if (Math.random() < 0.14) {
-        lotSpots.push({ x: cx, z: cz })
-        // 空地圍牆
-        const fenceMat = new THREE.MeshStandardMaterial({ color: 0x9a9a90, roughness: 0.9 })
-        for (const [dx, dz, w, d] of [
-          [0, -BLOCK / 2, BLOCK, 0.3], [0, BLOCK / 2, BLOCK, 0.3],
-          [-BLOCK / 2, 0, 0.3, BLOCK], [BLOCK / 2, 0, 0.3, BLOCK],
-        ]) {
-          const fence = new THREE.Mesh(new THREE.BoxGeometry(w, 1.6, d), fenceMat)
-          fence.position.set(cx + dx, 1.0, cz + dz)
-          scene.add(fence)
-        }
-        // 空地內雜草
-        for (let i = 0; i < 3; i++) {
-          const tree = Math.random() < 0.3 ? makeBanyanTree() : makeTree()
-          tree.position.set(cx + rand(-9, 9), 0.2, cz + rand(-9, 9))
-          scene.add(tree)
-        }
+        // 空地規劃成社區公園（涼亭、兒童遊樂設施、樹木）；
+        // 廢棄物堆改藏在公園疏於整理的角落
+        lotSpots.push(...addPark(scene, colliders, cx, cz))
         continue
       }
 
@@ -1871,10 +2119,8 @@ export function createWorld(scene) {
   const guttersPlaced = targets.filter((t) => t.type === 'gutter').length
   if (guttersPlaced < 4) place(bigRoofs, 4 - guttersPlaced, true, 'gutter', makeGutter, gutterPos)
 
-  // 雜草空地：一塊空地能同時容納好幾個藏匿點，每塊空地產生數個候選位置
-  const lots = shuffle(lotSpots.flatMap((s) => Array.from({ length: 5 }, () => (
-    { x: s.x + rand(-9, 9), z: s.z + rand(-9, 9) }
-  ))))
+  // 公園角落：每座公園提供四個角落候選位置（addPark 已回傳具體座標）
+  const lots = shuffle(lotSpots)
   place(lots, 5, true, 'debris', makeDebris)
   place(lots, 3, false, 'debris', makeDebris)
 
@@ -1893,7 +2139,7 @@ export function createWorld(scene) {
   place(grounds, 3, true, 'container', makeContainer)
   place(grounds, 4, false, 'container', makeContainer)
 
-  // 空地不夠時（隨機生成的城市空地數量偏少），用街邊位置補足
+  // 公園不夠時（隨機生成的公園數量偏少），用街邊位置補足
   const debrisPlaced = targets.filter((t) => t.type === 'debris').length
   if (debrisPlaced < 5) place(grounds, 5 - debrisPlaced, true, 'debris', makeDebris)
   let containerPlaced = targets.filter((t) => t.type === 'container').length
