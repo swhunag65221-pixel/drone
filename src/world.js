@@ -1312,6 +1312,64 @@ function makeBoat() {
   return g
 }
 
+// 街道上的汽車：純造景，沿直線自動前進（總高壓在 1.2m 以下，不與最低飛行高度衝突）
+function makeCar() {
+  const g = new THREE.Group()
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: pick([0xd8d8d8, 0x2a2a2e, 0x8a1a1a, 0x2a4a7a, 0xc8c0a8, 0x4a6a4a, 0xe0a020]),
+    roughness: 0.4,
+    metalness: 0.3,
+  })
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 4.0), bodyMat)
+  body.position.y = 0.5
+  g.add(body)
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5, 0.4, 2.0),
+    new THREE.MeshStandardMaterial({ color: 0x223244, roughness: 0.2, metalness: 0.4 })
+  )
+  cabin.position.set(0, 0.95, -0.25)
+  g.add(cabin)
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 })
+  const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.24, 10)
+  for (const wx of [-0.82, 0.82]) {
+    for (const wz of [-1.25, 1.25]) {
+      const wheel = new THREE.Mesh(wheelGeo, wheelMat)
+      wheel.rotation.z = Math.PI / 2
+      wheel.position.set(wx, 0.3, wz)
+      g.add(wheel)
+    }
+  }
+  // 頭燈（前）與尾燈（後）
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0 })
+  const tailMat = new THREE.MeshBasicMaterial({ color: 0xc02020 })
+  for (const lx of [-0.55, 0.55]) {
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.06), headMat)
+    head.position.set(lx, 0.55, 2.01)
+    g.add(head)
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.06), tailMat)
+    tail.position.set(lx, 0.55, -2.01)
+    g.add(tail)
+  }
+  return g
+}
+
+// 汽車自動前進：沿所屬街道直線行駛，開出城市邊界後從另一端回來
+export function updateCars(cars, dt) {
+  const limit = HALF + 30
+  for (const c of cars) {
+    const p = c.group.position
+    if (c.axis === 'z') {
+      p.z += c.dir * c.speed * dt
+      if (c.dir > 0 && p.z > limit) p.z = -limit
+      else if (c.dir < 0 && p.z < -limit) p.z = limit
+    } else {
+      p.x += c.dir * c.speed * dt
+      if (c.dir > 0 && p.x > limit) p.x = -limit
+      else if (c.dir < 0 && p.x < -limit) p.x = limit
+    }
+  }
+}
+
 // 公園涼亭：方形四柱＋攢尖紅瓦頂
 function makePavilion() {
   const g = new THREE.Group()
@@ -1772,6 +1830,39 @@ export function createWorld(scene) {
     scene.add(boat)
   }
 
+  // 街道上自動行駛的汽車：每條街道雙向各 1~2 台，靠右行駛（台灣的行車方向）
+  const cars = []
+  const laneOff = STREET / 4.8
+  // 南北向街道（會經過運河上的橋）
+  for (let i = 1; i <= GRID; i++) {
+    const sx = -HALF + i * PITCH - STREET / 2
+    for (const dir of [1, -1]) {
+      const n = 1 + Math.floor(Math.random() * 2)
+      for (let k = 0; k < n; k++) {
+        const car = makeCar()
+        car.position.set(sx - dir * laneOff, 0.04, rand(-HALF, HALF))
+        car.rotation.y = dir > 0 ? 0 : Math.PI
+        scene.add(car)
+        cars.push({ group: car, axis: 'z', dir, speed: rand(8, 13) })
+      }
+    }
+  }
+  // 東西向街道（運河那一排沒有街道，跳過）
+  for (let j = 1; j <= GRID; j++) {
+    if (j === CANAL_ROW) continue
+    const sz = -HALF + j * PITCH - STREET / 2
+    for (const dir of [1, -1]) {
+      const n = 1 + Math.floor(Math.random() * 2)
+      for (let k = 0; k < n; k++) {
+        const car = makeCar()
+        car.position.set(rand(-HALF, HALF), 0.04, sz + dir * laneOff)
+        car.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2
+        scene.add(car)
+        cars.push({ group: car, axis: 'x', dir, speed: rand(8, 13) })
+      }
+    }
+  }
+
   const roofSpots = []      // 可放水塔的屋頂 {x, y, z}
   const groundSpots = []    // 巷弄/街邊可放容器的位置
   const lotSpots = []       // 公園角落的廢棄物藏匿點
@@ -2154,7 +2245,7 @@ export function createWorld(scene) {
     place(extra, 6 - containerPlaced, true, 'container', makeContainer, centerPos)
   }
 
-  return { colliders, inspectables, targets, waterMeshes, spawnPoint }
+  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars }
 }
 
 // 產生單一積水樣態的展示物件（開場圖鑑用縮圖渲染）

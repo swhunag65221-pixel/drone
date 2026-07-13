@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, TARGET_TYPES } from './world.js'
+import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, updateCars, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
 
 const GAME_TIME = 120     // 秒
@@ -37,7 +37,7 @@ scene.add(sun)
 const worldGroup = new THREE.Group()
 scene.add(worldGroup)
 
-let colliders, inspectables, targets, waterMeshes, spawnPoint
+let colliders, inspectables, targets, waterMeshes, spawnPoint, cars
 
 function disposeWorld() {
   worldGroup.traverse((obj) => {
@@ -53,7 +53,7 @@ function disposeWorld() {
 
 function buildWorld() {
   disposeWorld()
-  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint } = createWorld(worldGroup))
+  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, cars } = createWorld(worldGroup))
 }
 
 buildWorld()
@@ -343,6 +343,9 @@ function animate() {
   waterMeshes.forEach((w, i) => {
     w.material.emissiveIntensity = 0.35 + 0.3 * Math.sin(t * 4 + i * 1.7)
   })
+
+  // 街道汽車自動前進（暫停時凍結）
+  if (state !== 'paused') updateCars(cars, dt)
 
   if (state === 'playing') {
     // 倒數計時用真實經過時間，避免低幀率時「時間變慢」，確保 60 秒任務時限對應真實時間
