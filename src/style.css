@@ -192,18 +192,80 @@ button:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(64, 190,
 #finalScore { font-size: 52px; font-weight: 800; color: #7fe0ff; margin: 10px 0; }
 #rank { font-size: 22px; color: #ffd24a; margin-bottom: 16px; }
 
+/* ---------- 練習模式介面 ---------- */
+/* 容器本身不攔截滑鼠（點擊空白處可鎖定指標開始試飛），各面板才可互動 */
+#practiceUI { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+#practiceUI > * { pointer-events: auto; }
+
+#practiceBanner {
+  position: absolute;
+  top: 16px;
+  left: calc((100% - 16.6%) / 2);
+  transform: translateX(-50%);
+  background: rgba(8, 20, 32, 0.78);
+  border: 1px solid rgba(120, 200, 255, 0.35);
+  color: #cde9fa;
+  font-size: 14px;
+  padding: 7px 18px;
+  border-radius: 999px;
+}
+
+#practicePanel {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 320px;
+  max-width: calc(80% - 16.6%);
+  background: rgba(8, 20, 32, 0.78);
+  border: 1px solid rgba(120, 200, 255, 0.35);
+  border-radius: 14px;
+  padding: 16px 18px;
+  color: #e8f4fc;
+  backdrop-filter: blur(4px);
+}
+#practicePanel h1 { font-size: 18px; margin-bottom: 8px; }
+#practicePanel .sub { font-size: 13px; color: #a9cfe6; line-height: 1.6; margin-bottom: 8px; }
+#practicePanel .legend li { font-size: 13px; padding: 3px 0; }
+#practicePanel .tip { margin-top: 8px; font-size: 12px; }
+
+/* 右側圖鑑欄：最多佔整個畫面寬度的 1/6 */
+#sidebar {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 16.6%;
+  background: rgba(6, 16, 26, 0.82);
+  border-left: 1px solid rgba(120, 200, 255, 0.3);
+  padding: 10px;
+  overflow-y: auto;
+  color: #e8f4fc;
+  backdrop-filter: blur(4px);
+}
+#sidebarTitle { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+#sidebarTitle span { display: block; font-weight: 400; font-size: 11px; color: #ffd24a; margin-top: 3px; }
+
+#startBar {
+  position: absolute;
+  bottom: 18px;
+  left: calc((100% - 16.6%) / 2);
+  transform: translateX(-50%);
+  text-align: center;
+}
+#startBar button { font-size: 21px; padding: 14px 52px; }
+#startBar .tip { margin-top: 8px; }
+
+/* 練習模式的 HUD：隱藏計時/分數列，高度表往左避開右側圖鑑欄 */
+#hud.practice #topbar { display: none; }
+#hud.practice #alt { right: calc(16.6% + 16px); }
+
 /* ---------- 積水樣態圖鑑 ---------- */
 .overlay { overflow-y: auto; }
-.panel.wide { max-width: 940px; }
 
 .intro-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  margin-bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   text-align: left;
 }
-@media (max-width: 760px) { .intro-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .intro-card {
   background: rgba(255, 255, 255, 0.06);
@@ -218,21 +280,22 @@ button:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(64, 190,
   object-fit: cover;
   background: #bfdcee;
 }
-.intro-card .card-body { padding: 10px 12px 12px; }
+.intro-card .card-body { padding: 8px 10px 10px; }
 .intro-card .card-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #ffffff;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.intro-card .card-hint { font-size: 13px; color: #bcdcee; line-height: 1.55; }
+.intro-card .card-title .pts { min-width: 38px; font-size: 12px; }
+.intro-card .card-hint { font-size: 11.5px; color: #bcdcee; line-height: 1.5; }
 .intro-card .card-where {
-  font-size: 12.5px;
+  font-size: 11px;
   color: #ffd24a;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 /* ---------- 複盤模式 ---------- */
