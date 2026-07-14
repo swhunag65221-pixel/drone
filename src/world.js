@@ -1353,6 +1353,83 @@ function makeCar() {
   return g
 }
 
+// 路上的行人：低多邊形小人，手腳會擺動、沿路邊行走
+function makePedestrian() {
+  const g = new THREE.Group()
+  const skinMat = new THREE.MeshStandardMaterial({ color: pick([0xe8bb95, 0xd9a06f, 0xc98a5a]), roughness: 0.8 })
+  const shirtMat = new THREE.MeshStandardMaterial({
+    color: pick([0xd85a4a, 0x4a7ab5, 0xe8d05a, 0x5aa06a, 0xf0f0ea, 0x8a5aa0, 0x3a3a40]),
+    roughness: 0.8,
+  })
+  const pantsMat = new THREE.MeshStandardMaterial({ color: pick([0x2a3a55, 0x3a3a3a, 0x6a5a45]), roughness: 0.85 })
+
+  // 腿（樞軸在髖部，走路時前後擺動）
+  const legGeo = new THREE.BoxGeometry(0.13, 0.62, 0.13)
+  legGeo.translate(0, -0.31, 0)
+  const legL = new THREE.Mesh(legGeo, pantsMat)
+  legL.position.set(-0.09, 0.62, 0)
+  g.add(legL)
+  const legR = new THREE.Mesh(legGeo, pantsMat)
+  legR.position.set(0.09, 0.62, 0)
+  g.add(legR)
+
+  // 軀幹與頭
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.5, 0.2), shirtMat)
+  torso.position.y = 0.62 + 0.25
+  g.add(torso)
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 10), skinMat)
+  head.position.y = 1.27
+  g.add(head)
+  // 部分行人戴帽子
+  if (Math.random() < 0.35) {
+    const hat = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.15, 0.06, 10),
+      new THREE.MeshStandardMaterial({ color: pick([0xe8e0c8, 0x4a6a8a, 0xc05a3a]), roughness: 0.8 })
+    )
+    hat.position.y = 1.38
+    g.add(hat)
+  }
+
+  // 手臂（樞軸在肩部，與腿反向擺動）
+  const armGeo = new THREE.BoxGeometry(0.09, 0.48, 0.09)
+  armGeo.translate(0, -0.24, 0)
+  const armL = new THREE.Mesh(armGeo, shirtMat)
+  armL.position.set(-0.23, 1.1, 0)
+  g.add(armL)
+  const armR = new THREE.Mesh(armGeo, shirtMat)
+  armR.position.set(0.23, 1.1, 0)
+  g.add(armR)
+
+  g.userData.limbs = { legL, legR, armL, armR }
+  return g
+}
+
+// 行人自動走動：沿路邊直線行走、手腳擺動，走出城市邊界後從另一端回來
+export function updatePedestrians(peds, dt) {
+  const limit = HALF + 10
+  for (const w of peds) {
+    // 走路擺動：步頻與行走速度成正比
+    w.phase += dt * w.speed * 4.2
+    const s = Math.sin(w.phase) * 0.5
+    const { legL, legR, armL, armR } = w.group.userData.limbs
+    legL.rotation.x = s
+    legR.rotation.x = -s
+    armL.rotation.x = -s * 0.7
+    armR.rotation.x = s * 0.7
+
+    const p = w.group.position
+    if (w.axis === 'z') {
+      p.z += w.dir * w.speed * dt
+      if (w.dir > 0 && p.z > limit) p.z = -limit
+      else if (w.dir < 0 && p.z < -limit) p.z = limit
+    } else {
+      p.x += w.dir * w.speed * dt
+      if (w.dir > 0 && p.x > limit) p.x = -limit
+      else if (w.dir < 0 && p.x < -limit) p.x = limit
+    }
+  }
+}
+
 // 汽車自動前進：沿所屬街道直線行駛，開出城市邊界後從另一端回來
 export function updateCars(cars, dt) {
   const limit = HALF + 30
@@ -1864,6 +1941,39 @@ export function createWorld(scene) {
     }
   }
 
+  // 路邊走動的行人：貼著路緣行走（避開車道），每條街道兩側各 1~2 位
+  const pedestrians = []
+  const curbOff = STREET / 2 - 1.0
+  for (let i = 1; i <= GRID; i++) {
+    const sx = -HALF + i * PITCH - STREET / 2
+    for (const side of [-1, 1]) {
+      const n = 1 + Math.floor(Math.random() * 2)
+      for (let k = 0; k < n; k++) {
+        const dir = Math.random() < 0.5 ? 1 : -1
+        const ped = makePedestrian()
+        ped.position.set(sx + side * curbOff, 0.02, rand(-HALF, HALF))
+        ped.rotation.y = dir > 0 ? 0 : Math.PI
+        scene.add(ped)
+        pedestrians.push({ group: ped, axis: 'z', dir, speed: rand(1.1, 1.9), phase: rand(0, Math.PI * 2) })
+      }
+    }
+  }
+  for (let j = 1; j <= GRID; j++) {
+    if (j === CANAL_ROW) continue
+    const sz = -HALF + j * PITCH - STREET / 2
+    for (const side of [-1, 1]) {
+      const n = 1 + Math.floor(Math.random() * 2)
+      for (let k = 0; k < n; k++) {
+        const dir = Math.random() < 0.5 ? 1 : -1
+        const ped = makePedestrian()
+        ped.position.set(rand(-HALF, HALF), 0.02, sz + side * curbOff)
+        ped.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2
+        scene.add(ped)
+        pedestrians.push({ group: ped, axis: 'x', dir, speed: rand(1.1, 1.9), phase: rand(0, Math.PI * 2) })
+      }
+    }
+  }
+
   const roofSpots = []      // 可放水塔的屋頂 {x, y, z}
   const groundSpots = []    // 巷弄/街邊可放容器的位置
   const lotSpots = []       // 公園角落的廢棄物藏匿點
@@ -2246,7 +2356,7 @@ export function createWorld(scene) {
     place(extra, 6 - containerPlaced, true, 'container', makeContainer, centerPos)
   }
 
-  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars }
+  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians }
 }
 
 // 產生單一積水樣態的展示物件（開場圖鑑用縮圖渲染）
