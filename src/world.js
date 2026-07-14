@@ -289,6 +289,42 @@ function getGroundTextures(detail = 512, anisotropy = 1) {
   return groundTex
 }
 
+// ---------- 接觸陰影（風格化偽 AO：物件底部的柔邊漸層暗斑） ----------
+// 真 SSAO 在平面著色低多邊形上顯髒且昂貴；放射漸層貼片是
+// Monument Valley 式的做法：一張共用貼圖、每個物件一片透明平面。
+let contactMat = null
+let contactGeo = null
+let contactLevel = 'all' // 由 createWorld 依畫質分級設定：all | moving | buildings
+
+function getContactShadowParts() {
+  if (!contactMat) {
+    const c = document.createElement('canvas')
+    c.width = c.height = 128
+    const g = c.getContext('2d')
+    const grad = g.createRadialGradient(64, 64, 6, 64, 64, 62)
+    grad.addColorStop(0, 'rgba(0,0,0,0.32)')
+    grad.addColorStop(0.65, 'rgba(0,0,0,0.14)')
+    grad.addColorStop(1, 'rgba(0,0,0,0)')
+    g.fillStyle = grad
+    g.fillRect(0, 0, 128, 128)
+    const t = new THREE.CanvasTexture(c)
+    contactMat = new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false })
+    contactGeo = new THREE.PlaneGeometry(1, 1)
+  }
+  return { mat: contactMat, geo: contactGeo }
+}
+
+// 建立一片 w×d 的接觸陰影（呼叫端自行 add 至群組或場景）
+function makeContactShadow(w, d, y = 0.02) {
+  const { mat, geo } = getContactShadowParts()
+  const m = new THREE.Mesh(geo, mat)
+  m.rotation.x = -Math.PI / 2
+  m.scale.set(w, d, 1)
+  m.position.y = y
+  m.renderOrder = 1
+  return m
+}
+
 // 積水水面材質（會反光閃爍，是玩家找目標的線索）
 function makeWaterMaterial() {
   return new THREE.MeshStandardMaterial({
@@ -766,6 +802,7 @@ function makeDebris(hasWater, waterMeshes) {
 
 function makeTree() {
   const g = new THREE.Group()
+  if (contactLevel === 'all') g.add(makeContactShadow(3.0, 3.0, 0.02))
   const trunk = new THREE.Mesh(
     new THREE.CylinderGeometry(0.18, 0.26, 2.4, 8),
     new THREE.MeshStandardMaterial({ color: 0x6b4e2e, roughness: 0.9 })
@@ -785,6 +822,7 @@ function makeTree() {
 // 老榕樹：寬闊樹冠垂掛氣根，台南街頭常見的老樹意象
 function makeBanyanTree() {
   const g = new THREE.Group()
+  if (contactLevel === 'all') g.add(makeContactShadow(4.4, 4.4, 0.02))
   const barkMat = new THREE.MeshStandardMaterial({ color: 0x5c4530, roughness: 0.95 })
   const leafMat = new THREE.MeshStandardMaterial({ color: pick([0x3f7d3a, 0x4c8a3f, 0x477a42]), roughness: 0.95 })
 
@@ -974,6 +1012,10 @@ function addRowhouseStrip(scene, colliders, roofSpots, groundSpots, eaveSpots, p
     house.castShadow = true
     house.receiveShadow = true
     scene.add(house)
+    // 建築基座接觸陰影（所有畫質皆有）
+    const houseShadow = makeContactShadow(w * 1.6, d * 1.6)
+    houseShadow.position.set(hx, 0.213, pz)
+    scene.add(houseShadow)
 
     const box = new THREE.Box3().setFromObject(house)
     box.expandByScalar(0.9)
@@ -2679,6 +2721,9 @@ export function createWorld(scene, opts = {}) {
     signMats: SIGN_TEXTS.map((t) => new THREE.MeshBasicMaterial({ map: makeSignTexture(t) })),
   }
 
+  // 依畫質分級設定接觸陰影密度（模組內各工廠讀取）
+  contactLevel = opts.contactShadows ?? 'all'
+
   // 地面（柏油）：程序化貼圖取代純色（噪點＋裂縫＋修補痕）
   const gtex = getGroundTextures(opts.textureDetail ?? 512, opts.anisotropy ?? 1)
   const groundMap = gtex.asphalt.clone()
@@ -2801,6 +2846,7 @@ export function createWorld(scene, opts = {}) {
         const car = makeCar()
         car.position.set(sx - dir * laneOff, 0.04, rand(-HALF, HALF))
         car.rotation.y = dir > 0 ? 0 : Math.PI
+        if (contactLevel !== 'buildings') car.add(makeContactShadow(2.6, 4.8, 0.045))
         scene.add(car)
         cars.push({ group: car, axis: 'z', dir, speed: rand(8, 13), sig: i < GRID })
       }
@@ -2816,6 +2862,7 @@ export function createWorld(scene, opts = {}) {
         const car = makeCar()
         car.position.set(rand(-HALF, HALF), 0.04, sz + dir * laneOff)
         car.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2
+        if (contactLevel !== 'buildings') car.add(makeContactShadow(2.6, 4.8, 0.045))
         scene.add(car)
         cars.push({ group: car, axis: 'x', dir, speed: rand(8, 13), sig: j < GRID })
       }
@@ -2833,6 +2880,7 @@ export function createWorld(scene, opts = {}) {
     const pcz = -HALF + bz * PITCH + BLOCK / 2
     const ped = makePedestrian()
     ped.position.y = 0.2 // 人行道基座頂面
+    if (contactLevel !== 'buildings') ped.add(makeContactShadow(0.9, 0.9, 0.012))
     scene.add(ped)
     pedestrians.push({
       group: ped,
@@ -2984,6 +3032,9 @@ export function createWorld(scene, opts = {}) {
           building.castShadow = true
           building.receiveShadow = true
           scene.add(building)
+          const bldgShadow = makeContactShadow(w * 1.5, d * 1.5)
+          bldgShadow.position.set(px, 0.213, pz)
+          scene.add(bldgShadow)
 
           const box = new THREE.Box3().setFromObject(building)
           box.expandByScalar(0.9) // 無人機半徑

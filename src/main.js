@@ -35,11 +35,15 @@ const sun = new THREE.DirectionalLight(0xffdfb0, 3.2)
 sun.position.set(130, 190, 90)
 sun.castShadow = true
 sun.shadow.mapSize.set(2048, 2048)
-sun.shadow.camera.left = -160
-sun.shadow.camera.right = 160
-sun.shadow.camera.top = 160
-sun.shadow.camera.bottom = -160
-sun.shadow.camera.far = 500
+// 貼合世界實際範圍（±173），並以 bias/normalBias 抑制牆面自陰影條紋
+sun.shadow.camera.left = -175
+sun.shadow.camera.right = 175
+sun.shadow.camera.top = 175
+sun.shadow.camera.bottom = -175
+sun.shadow.camera.near = 40
+sun.shadow.camera.far = 520
+sun.shadow.bias = -0.0002
+sun.shadow.normalBias = 0.4
 scene.add(sun)
 
 // 畫質分級（URL/記憶/GPU 偵測；須在第一次 render 前初始化，陰影管線才可完整切換）
