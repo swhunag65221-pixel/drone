@@ -333,19 +333,33 @@ function rankFor(s) {
 // ---------- 主迴圈 ----------
 const clock = new THREE.Clock()
 
+// 視覺驗證掛鉤用：水面脈動參數（Phase A 調校時只需改這裡）、
+// 定格模式（?freeze=1 停止車流/行人/號誌，供固定鏡位截圖）、幀率統計
+const WATER_BASE = 0.35
+const WATER_AMP = 0.3
+let waterPhaseOverride = null // null=正常動畫；'max'/'min'=定格在最亮/最暗（ΔLuma 量測用）
+const FREEZE = new URLSearchParams(location.search).has('freeze')
+const frameTimes = []
+
 function animate() {
   requestAnimationFrame(animate)
   const rawDt = clock.getDelta()
   const dt = Math.min(rawDt, 0.05) // physics 用：低幀率時鉗制，避免無人機穿牆
   const t = clock.elapsedTime
 
+  frameTimes.push(rawDt)
+  if (frameTimes.length > 120) frameTimes.shift()
+
   // 水面閃爍（找目標的視覺線索）
   waterMeshes.forEach((w, i) => {
-    w.material.emissiveIntensity = 0.35 + 0.3 * Math.sin(t * 4 + i * 1.7)
+    w.material.emissiveIntensity =
+      waterPhaseOverride === 'max' ? WATER_BASE + WATER_AMP
+      : waterPhaseOverride === 'min' ? WATER_BASE - WATER_AMP
+      : WATER_BASE + WATER_AMP * Math.sin(t * 4 + i * 1.7)
   })
 
-  // 交通號誌、汽車與行人（暫停時凍結）
-  if (state !== 'paused') {
+  // 交通號誌、汽車與行人（暫停時凍結；?freeze=1 供視覺驗證定格）
+  if (state !== 'paused' && !FREEZE) {
     updateTraffic(traffic, dt)
     updateCars(cars, dt, traffic)
     updatePedestrians(pedestrians, dt, traffic)
@@ -380,5 +394,25 @@ function animate() {
 updateHUD()
 animate()
 
-// 自動化測試用掛鉤
-window.__game = { camera, targets, getScore: () => score, getState: () => state }
+// 自動化測試／視覺驗證掛鉤（常駐、輕量；scripts/visual-check.mjs 依賴這組介面）
+window.__game = {
+  camera,
+  targets,
+  getScore: () => score,
+  getState: () => state,
+  getTargets: () => targets,
+  // 固定鏡位：瞬移攝影機並歸零速度（截圖用）
+  setPose: (x, y, z, lx, ly, lz) => {
+    camera.position.set(x, y, z)
+    camera.lookAt(lx, ly, lz)
+    drone.velocity.set(0, 0, 0)
+  },
+  // 水面脈動定格：'max' | 'min' | null（ΔLuma 量測用）
+  setWaterPhase: (m) => { waterPhaseOverride = m },
+  getFrameStats: () => ({
+    fps: frameTimes.length / Math.max(1e-6, frameTimes.reduce((a, b) => a + b, 0)),
+    calls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+  }),
+  restart: () => startNewRound(),
+}
