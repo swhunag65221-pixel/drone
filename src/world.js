@@ -2259,6 +2259,166 @@ function addArtMuseum(scene, colliders, cx, cz) {
   }
 }
 
+// 林百貨一樓黑底白字招牌
+function makeHayashiSignTexture() {
+  const c = document.createElement('canvas')
+  c.width = 512; c.height = 64
+  const g = c.getContext('2d')
+  g.fillStyle = '#16161a'
+  g.fillRect(0, 0, 512, 64)
+  g.fillStyle = '#f0ede4'
+  g.font = 'bold 30px sans-serif'
+  g.textAlign = 'center'
+  g.fillText("DEP'T-STORE", 130, 42)
+  g.fillText('HAYASHI', 390, 42)
+  // 中央「林」字六角商標
+  g.strokeStyle = '#f0ede4'
+  g.lineWidth = 2.5
+  g.beginPath()
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 6 + (i / 6) * Math.PI * 2
+    const px = 256 + Math.cos(a) * 24
+    const py = 32 + Math.sin(a) * 24
+    i === 0 ? g.moveTo(px, py) : g.lineTo(px, py)
+  }
+  g.closePath()
+  g.stroke()
+  g.font = 'bold 26px "Noto Sans TC", "Microsoft JhengHei", sans-serif'
+  g.fillText('林', 256, 42)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 林百貨：1932 年裝飾藝術風格的轉角百貨（純造景地標）——
+// 土黃色面磚、每層奶油色橫帶飾與欄杆、轉角塔樓（圓窗、階狀山牆、旗桿）、
+// 一樓騎樓柱廊與黑底白字招牌、頂樓綠化。
+function addHayashiStore(scene, colliders, cx, cz) {
+  const g = new THREE.Group()
+  const brickMat = new THREE.MeshStandardMaterial({ color: 0xb8935e, roughness: 0.85 })
+  const creamMat = new THREE.MeshStandardMaterial({ color: 0xdccfb0, roughness: 0.8 })
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x362e22, roughness: 0.6 })
+  const H = 16 // 五層樓高
+
+  // L 形主量體（兩翼相交於街角）
+  const wingX = new THREE.Mesh(new THREE.BoxGeometry(14, H, 9), brickMat)
+  wingX.position.set(7, H / 2, 4.5)
+  g.add(wingX)
+  const wingZ = new THREE.Mesh(new THREE.BoxGeometry(9, H, 13), brickMat)
+  wingZ.position.set(4.5, H / 2, 6.5)
+  g.add(wingZ)
+
+  // 轉角塔樓：斜 45° 方塔，正面朝路口，較主體高
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(6, H + 2.5, 6), brickMat)
+  tower.rotation.y = Math.PI / 4
+  tower.position.set(1.4, (H + 2.5) / 2, 1.4)
+  g.add(tower)
+  // 階狀山牆收頭＋短塔尖（旗桿）
+  const crown1 = new THREE.Mesh(new THREE.BoxGeometry(4.6, 1.2, 4.6), brickMat)
+  crown1.rotation.y = Math.PI / 4
+  crown1.position.set(1.4, H + 3.1, 1.4)
+  g.add(crown1)
+  const crown2 = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.0, 3.0), creamMat)
+  crown2.rotation.y = Math.PI / 4
+  crown2.position.set(1.4, H + 4.2, 1.4)
+  g.add(crown2)
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 3.0, 6),
+    new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.6 })
+  )
+  pole.position.set(1.4, H + 6.2, 1.4)
+  g.add(pole)
+
+  // 每層樓的奶油色橫帶飾（陽台欄杆意象），環繞兩翼與塔樓
+  for (let f = 1; f <= 5; f++) {
+    const y = 3.2 * f
+    const bandX = new THREE.Mesh(new THREE.BoxGeometry(14.3, 0.5, 9.3), creamMat)
+    bandX.position.set(7, y, 4.5)
+    g.add(bandX)
+    const bandZ = new THREE.Mesh(new THREE.BoxGeometry(9.3, 0.5, 13.3), creamMat)
+    bandZ.position.set(4.5, y, 6.5)
+    g.add(bandZ)
+    const bandT = new THREE.Mesh(new THREE.BoxGeometry(6.35, 0.5, 6.35), creamMat)
+    bandT.rotation.y = Math.PI / 4
+    bandT.position.set(1.4, y, 1.4)
+    g.add(bandT)
+  }
+
+  // 二樓以上：深色格子窗帶（臨街兩面）＋塔樓側的圓窗
+  for (let f = 1; f <= 5; f++) {
+    const y = 3.2 * f + 1.7
+    if (f >= 1) {
+      const winS = new THREE.Mesh(new THREE.BoxGeometry(10.5, 1.7, 0.14), darkMat)
+      winS.position.set(8.2, y, -0.03)
+      g.add(winS)
+      const winW = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.7, 9.5), darkMat)
+      winW.position.set(-0.03, y, 7.8)
+      g.add(winW)
+    }
+    // 圓窗（塔樓兩側牆面）
+    const holeS = new THREE.Mesh(new THREE.CircleGeometry(0.42, 14), darkMat)
+    holeS.position.set(3.1, y, -0.045)
+    holeS.rotation.y = Math.PI
+    g.add(holeS)
+    const holeW = new THREE.Mesh(new THREE.CircleGeometry(0.42, 14), darkMat)
+    holeW.position.set(-0.045, y, 3.1)
+    holeW.rotation.y = -Math.PI / 2
+    g.add(holeW)
+  }
+
+  // 一樓騎樓柱廊（石材柱）＋深色店面
+  const colMat = new THREE.MeshStandardMaterial({ color: 0x8a8a72, roughness: 0.9 })
+  for (const x of [3.4, 6.6, 9.8, 12.8]) {
+    const col = new THREE.Mesh(new THREE.BoxGeometry(0.7, 3.2, 0.7), colMat)
+    col.position.set(x, 1.6, -0.55)
+    g.add(col)
+  }
+  for (const z of [3.4, 6.6, 9.8, 12.2]) {
+    const col = new THREE.Mesh(new THREE.BoxGeometry(0.7, 3.2, 0.7), colMat)
+    col.position.set(-0.55, 1.6, z)
+    g.add(col)
+  }
+  const frontS = new THREE.Mesh(new THREE.BoxGeometry(14, 3.2, 0.12), darkMat)
+  frontS.position.set(7, 1.6, -0.02)
+  g.add(frontS)
+  const frontW = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3.2, 13), darkMat)
+  frontW.position.set(-0.02, 1.6, 6.5)
+  g.add(frontW)
+
+  // 黑底白字招牌（兩面臨街立面各一）
+  const signMat = new THREE.MeshBasicMaterial({ map: makeHayashiSignTexture() })
+  const signS = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 0.9), signMat)
+  signS.position.set(6.2, 3.0, -0.65)
+  signS.rotation.y = Math.PI
+  g.add(signS)
+  const signW = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 0.9), signMat)
+  signW.position.set(-0.65, 3.0, 6.2)
+  signW.rotation.y = -Math.PI / 2
+  g.add(signW)
+
+  // 頂樓綠化（林百貨的空中花園是著名特色）＋女兒牆
+  const bushMat = new THREE.MeshStandardMaterial({ color: 0x4a7a3a, roughness: 0.95 })
+  for (const [bx2, bz2] of [[10, 3], [12, 6], [6, 10], [3, 11]]) {
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(rand(0.5, 0.8), 8, 8), bushMat)
+    bush.position.set(bx2, H + 0.5, bz2)
+    g.add(bush)
+  }
+
+  // 轉角朝向西南路口
+  g.position.set(cx - 11, 0.2, cz - 11)
+  scene.add(g)
+  const box = new THREE.Box3().setFromObject(g)
+  box.expandByScalar(0.5)
+  colliders.push(box)
+
+  // 街區其餘空間：小廣場與樹木
+  for (const [tx, tz] of [[8, -6], [10, 2], [-4, 9]]) {
+    const tree = makeTree()
+    tree.position.set(cx + tx, 0.2, cz + tz)
+    scene.add(tree)
+  }
+}
+
 // 赤崁樓：城市中央廣場的地標建築（純造景、不可互動，僅供飛行時辨認方向）
 function makeChihkanTower() {
   const g = new THREE.Group()
@@ -2541,15 +2701,18 @@ export function createWorld(scene) {
 
   // 預先固定選出 3 個街區作為工地（帆布積水只出現在工地，保證數量充足）
   const centerIdx = Math.floor(GRID / 2)
-  // 臺南市美術館二館固定座落於市中心西側街區
+  // 臺南市美術館二館固定座落於市中心西側街區；林百貨在東側街區
   const MUSEUM_BX = centerIdx - 2
   const MUSEUM_BZ = centerIdx
+  const HAYASHI_BX = centerIdx + 1
+  const HAYASHI_BZ = centerIdx
   const siteBlocks = new Set()
   while (siteBlocks.size < 3) {
     const sbx = Math.floor(Math.random() * GRID)
     const sbz = Math.floor(Math.random() * GRID)
     if (sbx === centerIdx && sbz === centerIdx) continue
     if (sbx === MUSEUM_BX && sbz === MUSEUM_BZ) continue
+    if (sbx === HAYASHI_BX && sbz === HAYASHI_BZ) continue
     siteBlocks.add(`${sbx},${sbz}`)
   }
 
@@ -2582,6 +2745,10 @@ export function createWorld(scene) {
       }
       if (bx === MUSEUM_BX && bz === MUSEUM_BZ) {
         addArtMuseum(scene, colliders, cx, cz)
+        continue
+      }
+      if (bx === HAYASHI_BX && bz === HAYASHI_BZ) {
+        addHayashiStore(scene, colliders, cx, cz)
         continue
       }
       if (siteBlocks.has(`${bx},${bz}`)) {
