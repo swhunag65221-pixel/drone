@@ -13,17 +13,22 @@ renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
+// 電影感色調映射：ACES 曲線壓高光、保留暖色飽和，是與商業產品觀感差距最大的單一開關。
+// 下方燈光/背景/水面脈動振幅皆已針對 ACES 重新調校（映射會整體壓暗）。
+renderer.toneMapping = THREE.ACESFilmicToneMapping
+renderer.toneMappingExposure = 1.15
+renderer.outputColorSpace = THREE.SRGBColorSpace // r152+ 已是預設，明示以供查閱
 app.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xaed4ec)
-scene.fog = new THREE.Fog(0xaed4ec, 170, 480)
+scene.background = new THREE.Color(0xbfe0f5)
+scene.fog = new THREE.Fog(0xbfe0f5, 170, 480)
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 600)
 
-const hemi = new THREE.HemisphereLight(0xcfe6ff, 0x8a8f78, 1.0)
+const hemi = new THREE.HemisphereLight(0xcfe6ff, 0x8a8f78, 1.25)
 scene.add(hemi)
-const sun = new THREE.DirectionalLight(0xfff2df, 2.4)
+const sun = new THREE.DirectionalLight(0xfff2df, 3.2)
 sun.position.set(130, 190, 90)
 sun.castShadow = true
 sun.shadow.mapSize.set(2048, 2048)
@@ -104,6 +109,9 @@ function buildIntroCards() {
   introBuilt = true
 
   const tr = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
+  // 圖鑑縮圖與場內外觀必須一致：套用與主 renderer 相同的色調映射
+  tr.toneMapping = THREE.ACESFilmicToneMapping
+  tr.toneMappingExposure = 1.15
   tr.setSize(220, 150)
   const ts = new THREE.Scene()
   ts.background = new THREE.Color(0xbfdcee)
@@ -335,8 +343,8 @@ const clock = new THREE.Clock()
 
 // 視覺驗證掛鉤用：水面脈動參數（Phase A 調校時只需改這裡）、
 // 定格模式（?freeze=1 停止車流/行人/號誌，供固定鏡位截圖）、幀率統計
-const WATER_BASE = 0.35
-const WATER_AMP = 0.3
+const WATER_BASE = 0.55 // ACES 會壓暗高光：提高脈動基準與振幅讓峰值仍夠亮
+const WATER_AMP = 0.5
 let waterPhaseOverride = null // null=正常動畫；'max'/'min'=定格在最亮/最暗（ΔLuma 量測用）
 const FREEZE = new URLSearchParams(location.search).has('freeze')
 const frameTimes = []
