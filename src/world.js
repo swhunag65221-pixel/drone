@@ -150,6 +150,145 @@ function makeCrosswalkTexture() {
   return t
 }
 
+// ---------- 地表程序化貼圖（執行期生成、零資產成本） ----------
+// 注意：噪點亮度差刻意壓低（約 ±6%），避免地面雜訊蓋過地面目標的可讀性。
+
+// 柏油路面：低對比噪點＋稀疏裂縫＋修補痕
+function makeAsphaltTexture(size = 512) {
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  const g = c.getContext('2d')
+  g.fillStyle = '#474239'
+  g.fillRect(0, 0, size, size)
+  const img = g.getImageData(0, 0, size, size)
+  const d = img.data
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 16
+    d[i] += n; d[i + 1] += n; d[i + 2] += n
+  }
+  g.putImageData(img, 0, 0)
+  g.strokeStyle = 'rgba(28,26,22,0.35)'
+  g.lineWidth = size / 400
+  for (let i = 0; i < 12; i++) {
+    g.beginPath()
+    let x = Math.random() * size, y = Math.random() * size
+    g.moveTo(x, y)
+    for (let s = 0; s < 5; s++) {
+      x += (Math.random() - 0.5) * size * 0.1
+      y += (Math.random() - 0.5) * size * 0.1
+      g.lineTo(x, y)
+    }
+    g.stroke()
+  }
+  g.fillStyle = 'rgba(96,90,78,0.10)'
+  for (let i = 0; i < 6; i++) {
+    g.fillRect(Math.random() * size, Math.random() * size, size * (0.06 + Math.random() * 0.1), size * (0.04 + Math.random() * 0.08))
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 人行道鋪磚：磚縫格線＋低對比噪點
+function makePavementTexture(size = 256) {
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  const g = c.getContext('2d')
+  g.fillStyle = '#aa9c80'
+  g.fillRect(0, 0, size, size)
+  const img = g.getImageData(0, 0, size, size)
+  const d = img.data
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14
+    d[i] += n; d[i + 1] += n; d[i + 2] += n
+  }
+  g.putImageData(img, 0, 0)
+  g.strokeStyle = 'rgba(60,52,40,0.22)'
+  g.lineWidth = Math.max(1, size / 256)
+  const step = size / 8
+  for (let p = 0; p <= size; p += step) {
+    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, size); g.stroke()
+    g.beginPath(); g.moveTo(0, p); g.lineTo(size, p); g.stroke()
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 草皮：雙綠色斑塊＋噪點（公園草皮直接用；廢棄空地以材質色調成乾黃）
+function makeLawnTexture(size = 256) {
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  const g = c.getContext('2d')
+  g.fillStyle = '#6f9c55'
+  g.fillRect(0, 0, size, size)
+  g.fillStyle = 'rgba(125,168,95,0.5)'
+  for (let i = 0; i < 40; i++) {
+    g.beginPath()
+    g.arc(Math.random() * size, Math.random() * size, size * (0.02 + Math.random() * 0.05), 0, Math.PI * 2)
+    g.fill()
+  }
+  g.fillStyle = 'rgba(90,130,70,0.4)'
+  for (let i = 0; i < 30; i++) {
+    g.beginPath()
+    g.arc(Math.random() * size, Math.random() * size, size * (0.02 + Math.random() * 0.04), 0, Math.PI * 2)
+    g.fill()
+  }
+  const img = g.getImageData(0, 0, size, size)
+  const d = img.data
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 12
+    d[i] += n; d[i + 1] += n; d[i + 2] += n
+  }
+  g.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 運河水波 normal map：小尺寸噪點放大成柔和波紋（線性色彩空間）
+function makeCanalNormalTexture() {
+  const small = document.createElement('canvas')
+  small.width = small.height = 32
+  const sg = small.getContext('2d')
+  const img = sg.createImageData(32, 32)
+  for (let i = 0; i < img.data.length; i += 4) {
+    img.data[i] = 116 + Math.random() * 24
+    img.data[i + 1] = 116 + Math.random() * 24
+    img.data[i + 2] = 255
+    img.data[i + 3] = 255
+  }
+  sg.putImageData(img, 0, 0)
+  const c = document.createElement('canvas')
+  c.width = c.height = 128
+  const g = c.getContext('2d')
+  g.imageSmoothingEnabled = true
+  g.drawImage(small, 0, 0, 128, 128)
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  return t
+}
+
+// 地表貼圖模組層快取：canvas 來源常駐，即使 disposeWorld 釋放 GPU 資源，
+// 下一回合首次使用時 three 會自動重新上傳，重建安全。
+let groundTex = null
+function getGroundTextures(detail = 512, anisotropy = 1) {
+  if (!groundTex) {
+    groundTex = {
+      asphalt: makeAsphaltTexture(detail),
+      pavement: makePavementTexture(Math.min(256, detail)),
+      lawn: makeLawnTexture(Math.min(256, detail)),
+      canalNormal: makeCanalNormalTexture(),
+    }
+    groundTex.asphalt.anisotropy = anisotropy
+    groundTex.pavement.anisotropy = anisotropy
+  }
+  return groundTex
+}
+
 // 積水水面材質（會反光閃爍，是玩家找目標的線索）
 function makeWaterMaterial() {
   return new THREE.MeshStandardMaterial({
@@ -1732,10 +1871,12 @@ function makeBench() {
 // 社區公園：草皮、十字步道、涼亭、兒童遊樂區、綠籬與環繞樹木。
 // 回傳公園角落的廢棄物堆候選位置（公園疏於整理的角落是常見孳生源）。
 function addPark(scene, colliders, cx, cz) {
-  // 草皮鋪面
+  // 草皮鋪面（程序化草地貼圖）
+  const lawnMap = getGroundTextures().lawn.clone()
+  lawnMap.repeat.set(5, 5)
   const lawn = new THREE.Mesh(
     new THREE.PlaneGeometry(BLOCK - 0.8, BLOCK - 0.8),
-    new THREE.MeshStandardMaterial({ color: 0x6f9c55, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ map: lawnMap, roughness: 0.95 })
   )
   lawn.rotation.x = -Math.PI / 2
   lawn.position.set(cx, 0.21, cz)
@@ -1989,13 +2130,16 @@ function makeMattress() {
 function addAbandonedLot(scene, colliders, groundSpots, cx, cz) {
   const kind = pick(['fenced', 'overgrown', 'dump'])
 
-  // 乾枯雜草地面＋土斑
+  // 乾枯雜草地面＋土斑（草地貼圖以乾黃色調染出枯草感）
+  const dryMap = getGroundTextures().lawn.clone()
+  dryMap.repeat.set(5, 5)
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(BLOCK - 0.5, BLOCK - 0.5),
-    new THREE.MeshStandardMaterial({ color: 0x8a865a, roughness: 1 })
+    new THREE.MeshStandardMaterial({ map: dryMap, color: 0xd8c088, roughness: 1 })
   )
   ground.rotation.x = -Math.PI / 2
   ground.position.set(cx, 0.21, cz)
+  ground.receiveShadow = true
   scene.add(ground)
   for (let i = 0; i < 6; i++) {
     const patch = new THREE.Mesh(
@@ -2508,7 +2652,7 @@ function makeChihkanTower() {
 }
 
 // ---------- 建立整個城市 ----------
-export function createWorld(scene) {
+export function createWorld(scene, opts = {}) {
   const colliders = []      // 建築碰撞盒（已依無人機半徑外擴）
   const inspectables = []   // 可點擊檢查的隱形判定球
   const targets = []        // 真正的積水目標（計分用）
@@ -2535,10 +2679,13 @@ export function createWorld(scene) {
     signMats: SIGN_TEXTS.map((t) => new THREE.MeshBasicMaterial({ map: makeSignTexture(t) })),
   }
 
-  // 地面（柏油）
+  // 地面（柏油）：程序化貼圖取代純色（噪點＋裂縫＋修補痕）
+  const gtex = getGroundTextures(opts.textureDetail ?? 512, opts.anisotropy ?? 1)
+  const groundMap = gtex.asphalt.clone()
+  groundMap.repeat.set(26, 26)
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(GRID * PITCH + 80, GRID * PITCH + 80),
-    new THREE.MeshStandardMaterial({ color: 0x45403a, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ map: groundMap, roughness: 0.95 })
   )
   ground.rotation.x = -Math.PI / 2
   ground.receiveShadow = true
@@ -2567,14 +2714,22 @@ export function createWorld(scene) {
     scene.add(lineV)
   }
 
-  // 運河水面
+  // 運河水面：法線貼圖波紋，貼圖 offset 由主迴圈捲動（動態水波）
+  const canalNormal = gtex.canalNormal.clone()
+  canalNormal.repeat.set(34, 1)
   const canalWater = new THREE.Mesh(
     new THREE.PlaneGeometry(canalLen, canalWidth),
-    new THREE.MeshStandardMaterial({ color: 0x2a5f7a, roughness: 0.15, metalness: 0.3 })
+    new THREE.MeshStandardMaterial({
+      color: 0x2a5f7a, roughness: 0.15, metalness: 0.3,
+      normalMap: canalNormal, normalScale: new THREE.Vector2(0.5, 0.5),
+    })
   )
   canalWater.rotation.x = -Math.PI / 2
   canalWater.position.set(0, 0.05, canalZ)
+  canalWater.receiveShadow = true
   scene.add(canalWater)
+  // 主迴圈依 speed 捲動這些貼圖的 offset（重建時隨世界一起重新回傳）
+  const animatedTextures = [{ tex: canalNormal, sx: 0.018, sy: 0.011 }]
 
   // 堤岸：分段建置，橋樑經過處中斷（路面直接銜接橋面，不被堤岸牆擋住）
   const embankMat = new THREE.MeshStandardMaterial({ color: 0xb7ab94, roughness: 0.9 })
@@ -2593,13 +2748,16 @@ export function createWorld(scene) {
       for (const side of [-1, 1]) {
         const wall = new THREE.Mesh(new THREE.BoxGeometry(len, 0.9, 0.6), embankMat)
         wall.position.set((x0 + x1) / 2, 0.45, canalZ + side * (canalWidth / 2 + 0.3))
+        wall.receiveShadow = true
         scene.add(wall)
       }
     }
   }
 
   // 跨運河橋樑（對應每條南北向街道）：柏油橋面，與兩端路面齊平
-  const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x45403a, roughness: 0.95 })
+  const bridgeMap = gtex.asphalt.clone()
+  bridgeMap.repeat.set(1.2, 1.2)
+  const bridgeMat = new THREE.MeshStandardMaterial({ map: bridgeMap, roughness: 0.95 })
   const railMat = new THREE.MeshStandardMaterial({ color: 0xcfcfc8, roughness: 0.7 })
   const bridgeLineMat = new THREE.MeshBasicMaterial({ color: 0xd8d8c8 })
   for (let j = 1; j <= GRID; j++) {
@@ -2608,6 +2766,7 @@ export function createWorld(scene) {
     const deckTop = 0.07
     const bridge = new THREE.Mesh(new THREE.BoxGeometry(STREET, 0.45, canalWidth + 1.2), bridgeMat)
     bridge.position.set(bx, deckTop - 0.225, canalZ)
+    bridge.receiveShadow = true
     scene.add(bridge)
     // 橋面上的道路中線（銜接兩端街道的白線）
     const deckLine = new THREE.Mesh(new THREE.PlaneGeometry(0.35, canalWidth + 1.2), bridgeLineMat)
@@ -2699,6 +2858,11 @@ export function createWorld(scene) {
   let signIdx = 0
   let spawnPoint = null // 保留空地街區（無建築）的實際中心座標，供無人機安全重生用
 
+  // 人行道基座共用材質（49 塊街區共用一份鋪磚貼圖）
+  const padMap = gtex.pavement.clone()
+  padMap.repeat.set(7, 7)
+  const padMat = new THREE.MeshStandardMaterial({ map: padMap, roughness: 0.95 })
+
   // 預先固定選出 3 個街區作為工地（帆布積水只出現在工地，保證數量充足）
   const centerIdx = Math.floor(GRID / 2)
   // 臺南市美術館二館固定座落於市中心西側街區；林百貨在東側街區
@@ -2723,11 +2887,8 @@ export function createWorld(scene) {
       const isCenter = bx === Math.floor(GRID / 2) && bz === Math.floor(GRID / 2)
       if (isCenter) spawnPoint = new THREE.Vector3(cx, 18, cz)
 
-      // 街區底座（人行道/基地）
-      const pad = new THREE.Mesh(
-        new THREE.BoxGeometry(BLOCK + 2, 0.2, BLOCK + 2),
-        new THREE.MeshStandardMaterial({ color: 0xa89a7e, roughness: 0.95 })
-      )
+      // 街區底座（人行道/基地）：共用鋪磚貼圖材質
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(BLOCK + 2, 0.2, BLOCK + 2), padMat)
       pad.position.set(cx, 0.1, cz)
       pad.receiveShadow = true
       scene.add(pad)
@@ -3158,7 +3319,7 @@ export function createWorld(scene) {
     place(extra, 6 - containerPlaced, true, 'container', makeContainer, centerPos)
   }
 
-  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones }
+  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones, animatedTextures }
 }
 
 // 產生單一積水樣態的展示物件（開場圖鑑用縮圖渲染）

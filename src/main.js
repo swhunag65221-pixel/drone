@@ -54,7 +54,7 @@ if (clouds) scene.add(clouds)
 const worldGroup = new THREE.Group()
 scene.add(worldGroup)
 
-let colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones
+let colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones, animatedTextures
 
 function disposeWorld() {
   worldGroup.traverse((obj) => {
@@ -70,7 +70,8 @@ function disposeWorld() {
 
 function buildWorld() {
   disposeWorld()
-  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones } = createWorld(worldGroup))
+  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones, animatedTextures } =
+    createWorld(worldGroup, { textureDetail: gfx.flags.textureDetail, anisotropy: gfx.flags.anisotropy }))
 }
 
 buildWorld()
@@ -382,6 +383,9 @@ function animate() {
   // 天空穹頂跟隨攝影機（地平線視覺位置穩定）；雲慢速漂移
   sky.position.set(camera.position.x, 0, camera.position.z)
   if (clouds && !FREEZE) updateClouds(clouds, dt)
+
+  // 動態水波：捲動運河法線貼圖 offset
+  for (const a of animatedTextures) a.tex.offset.set(t * a.sx, t * a.sy)
 
   // 交通號誌、汽車與行人（暫停時凍結；?freeze=1 供視覺驗證定格）
   if (state !== 'paused' && !FREEZE) {
