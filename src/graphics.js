@@ -86,6 +86,104 @@ function applyTier(name, ctx) {
   return t
 }
 
+// ---------- 天空與大氣 ----------
+
+// 漸層天空穹頂：天頂藍→中段→暖色地平線＋朝太陽方向的光暈。
+// 不用 THREE.Sky（物理散射模型、fragment 成本高且偏寫實）——
+// 三段漸層更貼近風格化遊戲的乾淨質感。
+// 半徑 460 < 最低畫質視距 500，任何分級都不會被裁切；
+// shader 末端套用與場景相同的色調映射，讓霧色與地平線無縫銜接。
+export const SKY_HORIZON = 0xf5e6cf // 供 main.js 設定霧色（霧色＝地平線色 → 遠景融入天空）
+
+export function createSky(sunPosition) {
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: {
+      topColor: { value: new THREE.Color(0x6fb2e8) },
+      midColor: { value: new THREE.Color(0xbfe0f5) },
+      horizonColor: { value: new THREE.Color(SKY_HORIZON) },
+      sunDirection: { value: sunPosition.clone().normalize() },
+      sunColor: { value: new THREE.Color(0xfff0d0) },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vDir;
+      void main() {
+        vDir = normalize(position);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 topColor;
+      uniform vec3 midColor;
+      uniform vec3 horizonColor;
+      uniform vec3 sunDirection;
+      uniform vec3 sunColor;
+      varying vec3 vDir;
+      void main() {
+        vec3 dir = normalize(vDir);
+        float h = clamp(dir.y, 0.0, 1.0);
+        vec3 col = h < 0.25
+          ? mix(horizonColor, midColor, smoothstep(0.0, 0.25, h))
+          : mix(midColor, topColor, smoothstep(0.25, 1.0, h));
+        // 太陽：核心亮斑＋大範圍暖暈
+        float d = max(dot(dir, sunDirection), 0.0);
+        col += sunColor * (pow(d, 400.0) * 1.1 + pow(d, 10.0) * 0.18);
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+  })
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(460, 32, 18), mat)
+  dome.renderOrder = -1
+  return dome
+}
+
+// 柔邊雲貼圖（數個重疊的放射漸層白斑）
+function makeCloudTexture() {
+  const c = document.createElement('canvas')
+  c.width = 256
+  c.height = 128
+  const g = c.getContext('2d')
+  for (let i = 0; i < 7; i++) {
+    const x = 40 + Math.random() * 176
+    const y = 45 + Math.random() * 40
+    const r = 26 + Math.random() * 34
+    const grad = g.createRadialGradient(x, y, 0, x, y, r)
+    grad.addColorStop(0, 'rgba(255,255,255,0.85)')
+    grad.addColorStop(1, 'rgba(255,255,255,0)')
+    g.fillStyle = grad
+    g.fillRect(0, 0, 256, 128)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 高空慢速漂移的雲層（Sprite 廣告牌；中畫質以上）
+export function createClouds(count = 12) {
+  const group = new THREE.Group()
+  const tex = makeCloudTexture()
+  for (let i = 0; i < count; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.55 + Math.random() * 0.25, depthWrite: false })
+    const cloud = new THREE.Sprite(mat)
+    cloud.scale.set(60 + Math.random() * 60, 22 + Math.random() * 18, 1)
+    cloud.position.set((Math.random() - 0.5) * 760, 120 + Math.random() * 60, (Math.random() - 0.5) * 760)
+    cloud.userData.speed = 1.2 + Math.random() * 1.6
+    group.add(cloud)
+  }
+  return group
+}
+
+export function updateClouds(clouds, dt) {
+  for (const c of clouds.children) {
+    c.position.x += c.userData.speed * dt
+    if (c.position.x > 420) c.position.x = -420
+  }
+}
+
 // 建立畫質系統：偵測 → 套用 → 回傳控制物件
 export function initGraphics(ctx) {
   const { renderer } = ctx
