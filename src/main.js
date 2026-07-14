@@ -37,7 +37,7 @@ scene.add(sun)
 const worldGroup = new THREE.Group()
 scene.add(worldGroup)
 
-let colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic
+let colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones
 
 function disposeWorld() {
   worldGroup.traverse((obj) => {
@@ -53,7 +53,7 @@ function disposeWorld() {
 
 function buildWorld() {
   disposeWorld()
-  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic } = createWorld(worldGroup))
+  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones } = createWorld(worldGroup))
 }
 
 buildWorld()
@@ -83,7 +83,7 @@ const ui = {
 const INTRO_CARDS = [
   { type: 'tower', hint: '不鏽鋼水塔沒有頂蓋、看得到水面反光的才是目標；有錐形蓋的是誘餌。', where: '大樓屋頂（要飛到上方看）' },
   { type: 'tarp', hint: '藍白條紋帆布蓋著建材堆，帆布凹陷處積水。', where: '工地圍籬內的地面' },
-  { type: 'debris', hint: '廢棄雜物堆旁邊的一灘積水。', where: '公園疏於整理的角落' },
+  { type: 'debris', hint: '廢棄雜物堆旁邊的一灘積水。', where: '廢棄空地（雜草堆、鐵皮圍籬內）、公園角落' },
   { type: 'roofGarden', hint: '整片綠化的空中花園，積水藏在花盆、水桶、澆花器等容器裡。', where: '大樓屋頂（整片綠色的那種）' },
   { type: 'gutter', hint: '屋頂邊緣的長條排水槽，落葉堵塞後積水。', where: '透天厝屋頂的四邊' },
   { type: 'container', hint: '水桶、水盆、輪胎、垃圾桶、保麗龍箱裡的積水。', where: '巷弄、騎樓下，也可能在騎樓遮簷上或高低建築之間的屋簷' },
