@@ -1835,6 +1835,302 @@ function addPark(scene, colliders, cx, cz) {
   ]
 }
 
+// ---------- 廢棄空地的棄置物件 ----------
+
+// 雜草叢：單一低多邊形圓錐，大量散佈營造荒草感
+function makeWeedTuft() {
+  const weed = new THREE.Mesh(
+    new THREE.ConeGeometry(rand(0.18, 0.34), rand(0.4, 0.85), 5),
+    new THREE.MeshStandardMaterial({ color: pick([0x6f7a3a, 0x7d8a45, 0x5f6a35, 0x8a8a50]), roughness: 0.95 })
+  )
+  weed.position.y = 0.2
+  return weed
+}
+
+// 棄置沙發：褪色布面、缺腳直接坐地
+function makeSofa() {
+  const g = new THREE.Group()
+  const mat = new THREE.MeshStandardMaterial({ color: pick([0x7a6a5a, 0x5a6a7a, 0x6a5a48, 0x74506a]), roughness: 0.95 })
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.45, 0.85), mat)
+  seat.position.y = 0.28
+  g.add(seat)
+  const back = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.6, 0.25), mat)
+  back.position.set(0, 0.72, -0.32)
+  back.rotation.x = -0.12
+  g.add(back)
+  for (const ax of [-1.02, 1.02]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.62, 0.85), mat)
+    arm.position.set(ax, 0.42, 0)
+    g.add(arm)
+  }
+  return g
+}
+
+// 棄置衣櫃：傾斜倚地、門板半開
+function makeWardrobe() {
+  const g = new THREE.Group()
+  const mat = new THREE.MeshStandardMaterial({ color: pick([0x7a5a3a, 0x6a4f35, 0x8a6a48]), roughness: 0.9 })
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 0.55), mat)
+  body.position.y = 0.95
+  g.add(body)
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.7, 0.05), mat)
+  door.position.set(0.35, 0.95, 0.34)
+  door.rotation.y = 0.5
+  g.add(door)
+  g.rotation.z = rand(0.05, 0.12) // 微傾，顯出棄置感
+  return g
+}
+
+// 廢輪胎堆：數個輪胎疊放＋一個斜靠
+function makeTirePile() {
+  const g = new THREE.Group()
+  const mat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.95 })
+  const geo = new THREE.TorusGeometry(0.42, 0.17, 8, 18)
+  const n = 2 + Math.floor(Math.random() * 3)
+  for (let i = 0; i < n; i++) {
+    const tire = new THREE.Mesh(geo, mat)
+    tire.rotation.x = Math.PI / 2
+    tire.position.set(rand(-0.08, 0.08), 0.18 + i * 0.34, rand(-0.08, 0.08))
+    g.add(tire)
+  }
+  const lean = new THREE.Mesh(geo, mat)
+  lean.position.set(0.85, 0.42, 0.2)
+  lean.rotation.set(0.25, 0, 0.35)
+  g.add(lean)
+  return g
+}
+
+// 瓶罐堆：散落的玻璃瓶與鐵鋁罐
+function makeBottleCluster() {
+  const g = new THREE.Group()
+  for (let i = 0; i < 7; i++) {
+    const isCan = Math.random() < 0.45
+    const r = isCan ? rand(0.05, 0.07) : rand(0.05, 0.08)
+    const h = isCan ? rand(0.12, 0.16) : rand(0.22, 0.32)
+    const bottle = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, h, 7),
+      new THREE.MeshStandardMaterial({
+        color: isCan ? pick([0xb8bcc0, 0xc0a030, 0xa04030]) : pick([0x4a7a3a, 0x8a6a2a, 0xa8c0b8]),
+        roughness: isCan ? 0.4 : 0.2,
+        metalness: isCan ? 0.5 : 0.1,
+      })
+    )
+    const lying = Math.random() < 0.5
+    bottle.position.set(rand(-0.8, 0.8), lying ? r : h / 2, rand(-0.8, 0.8))
+    if (lying) bottle.rotation.set(Math.PI / 2, 0, rand(0, Math.PI))
+    g.add(bottle)
+  }
+  return g
+}
+
+// 廢棄車輛：鏽蝕車身、輪胎消氣下沉、缺一輪
+function makeJunkCar() {
+  const g = new THREE.Group()
+  const rustMat = new THREE.MeshStandardMaterial({ color: pick([0x9a6a4a, 0x7a5a48, 0x6a6a62]), roughness: 1 })
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 4.0), rustMat)
+  body.position.y = 0.38
+  g.add(body)
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(1.5, 0.4, 2.0),
+    new THREE.MeshStandardMaterial({ color: 0x2a2a28, roughness: 0.9 })
+  )
+  cabin.position.set(0, 0.82, -0.25)
+  g.add(cabin)
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95 })
+  const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.24, 10)
+  const missing = Math.floor(Math.random() * 4) // 缺一顆輪子
+  let idx = 0
+  for (const wx of [-0.82, 0.82]) {
+    for (const wz of [-1.25, 1.25]) {
+      if (idx++ === missing) continue
+      const wheel = new THREE.Mesh(wheelGeo, wheelMat)
+      wheel.rotation.z = Math.PI / 2
+      wheel.position.set(wx, 0.22, wz) // 消氣下沉
+      g.add(wheel)
+    }
+  }
+  g.rotation.z = 0.03
+  return g
+}
+
+// 棄置洗衣機與床墊
+function makeWashingMachine() {
+  const g = new THREE.Group()
+  const box = new THREE.Mesh(
+    new THREE.BoxGeometry(0.62, 0.85, 0.62),
+    new THREE.MeshStandardMaterial({ color: 0xd8d8d0, roughness: 0.8 })
+  )
+  box.position.y = 0.43
+  g.add(box)
+  const door = new THREE.Mesh(
+    new THREE.CircleGeometry(0.2, 12),
+    new THREE.MeshStandardMaterial({ color: 0x2a3a44, roughness: 0.3 })
+  )
+  door.position.set(0, 0.48, 0.315)
+  g.add(door)
+  g.rotation.z = rand(-0.08, 0.08)
+  return g
+}
+function makeMattress() {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 0.22, 2.0),
+    new THREE.MeshStandardMaterial({ color: 0xc8c0ac, roughness: 0.95 })
+  )
+  m.position.y = 0.32
+  m.rotation.y = rand(0, Math.PI)
+  return m
+}
+
+// 廢棄空地：三種情境隨機出現——
+// fenced：鐵皮圍籬封閉（低飛進不去，正是無人機從上方巡查的優勢）
+// overgrown：矮牆殘破、雜草叢生
+// dump：開放空地大量棄置廢棄物（家具、輪胎、瓶罐、廢棄車輛）
+// 回傳廢棄物堆（積水目標）候選位置；並將部分位置登錄為容器藏匿點。
+function addAbandonedLot(scene, colliders, groundSpots, cx, cz) {
+  const kind = pick(['fenced', 'overgrown', 'dump'])
+
+  // 乾枯雜草地面＋土斑
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(BLOCK - 0.5, BLOCK - 0.5),
+    new THREE.MeshStandardMaterial({ color: 0x8a865a, roughness: 1 })
+  )
+  ground.rotation.x = -Math.PI / 2
+  ground.position.set(cx, 0.21, cz)
+  scene.add(ground)
+  for (let i = 0; i < 6; i++) {
+    const patch = new THREE.Mesh(
+      new THREE.CircleGeometry(rand(1.5, 3.2), 10),
+      new THREE.MeshStandardMaterial({ color: pick([0x9a8a70, 0x6f7a3a, 0x7d7a4f]), roughness: 1 })
+    )
+    patch.rotation.x = -Math.PI / 2
+    patch.position.set(cx + rand(-9, 9), 0.215, cz + rand(-9, 9))
+    scene.add(patch)
+  }
+
+  // 周界：鐵皮圍籬（fenced）／殘破磚牆（overgrown）／傾斜鐵絲網柱（dump）
+  if (kind === 'fenced') {
+    // 鐵皮圍籬高 2.2m：無人機低飛撞牆，得飛越圍籬從上方查看
+    const panelColors = [0x9aa0a6, 0x8a9098, 0xa8adb2, 0x8a6a4a, 0x7a8a92]
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.7 })
+    const H = BLOCK / 2
+    for (const [dx, dz, horiz] of [[0, -H, true], [0, H, true], [-H, 0, false], [H, 0, false]]) {
+      const nPanel = 5
+      const len = BLOCK / nPanel
+      for (let p = 0; p < nPanel; p++) {
+        const off = -BLOCK / 2 + len * (p + 0.5)
+        const panel = new THREE.Mesh(
+          new THREE.BoxGeometry(horiz ? len : 0.1, 2.2, horiz ? 0.1 : len),
+          new THREE.MeshStandardMaterial({ color: pick(panelColors), roughness: 0.55, metalness: 0.35 })
+        )
+        panel.position.set(cx + dx + (horiz ? off : 0), 1.3, cz + dz + (horiz ? 0 : off))
+        scene.add(panel)
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 2.5, 0.14), postMat)
+        post.position.set(
+          cx + dx + (horiz ? off - len / 2 : 0),
+          1.45,
+          cz + dz + (horiz ? 0 : off - len / 2)
+        )
+        scene.add(post)
+      }
+      const wall = new THREE.Box3(
+        new THREE.Vector3(cx + dx - (horiz ? BLOCK / 2 : 0.4), 0, cz + dz - (horiz ? 0.4 : BLOCK / 2)),
+        new THREE.Vector3(cx + dx + (horiz ? BLOCK / 2 : 0.4), 2.5, cz + dz + (horiz ? 0.4 : BLOCK / 2))
+      )
+      colliders.push(wall)
+    }
+  } else if (kind === 'overgrown') {
+    // 殘破磚牆：低矮、多處坍塌缺口
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x9a8a76, roughness: 0.95 })
+    const H = BLOCK / 2
+    for (const [dx, dz, horiz] of [[0, -H, true], [0, H, true], [-H, 0, false], [H, 0, false]]) {
+      const nSeg = 7
+      const len = BLOCK / nSeg
+      for (let p = 0; p < nSeg; p++) {
+        if (Math.random() < 0.3) continue // 坍塌缺口
+        const off = -BLOCK / 2 + len * (p + 0.5)
+        const seg = new THREE.Mesh(
+          new THREE.BoxGeometry(horiz ? len - 0.2 : 0.28, rand(0.55, 0.95), horiz ? 0.28 : len - 0.2),
+          wallMat
+        )
+        seg.position.set(cx + dx + (horiz ? off : 0), 0.55, cz + dz + (horiz ? 0 : off))
+        scene.add(seg)
+      }
+    }
+  } else {
+    // dump：只剩幾支歪斜的圍籬柱
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x6a6a62, roughness: 0.8 })
+    for (let p = 0; p < 10; p++) {
+      const side = Math.floor(Math.random() * 4)
+      const off = rand(-BLOCK / 2, BLOCK / 2)
+      const H = BLOCK / 2
+      const px = side < 2 ? cx + off : cx + (side === 2 ? -H : H)
+      const pz = side < 2 ? cz + (side === 0 ? -H : H) : cz + off
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6), postMat)
+      post.position.set(px, 0.95, pz)
+      post.rotation.set(rand(-0.2, 0.2), 0, rand(-0.2, 0.2))
+      scene.add(post)
+    }
+  }
+
+  // 雜草：overgrown 最茂密，其他情境也有
+  const weedCount = kind === 'overgrown' ? 42 : 22
+  for (let i = 0; i < weedCount; i++) {
+    const weed = makeWeedTuft()
+    weed.position.x = cx + rand(-11, 11)
+    weed.position.z = cz + rand(-11, 11)
+    scene.add(weed)
+  }
+  if (kind === 'overgrown') {
+    for (let i = 0; i < 3; i++) {
+      const tree = Math.random() < 0.4 ? makeBanyanTree() : makeTree()
+      tree.position.set(cx + rand(-8, 8), 0.2, cz + rand(-8, 8))
+      scene.add(tree)
+    }
+  }
+
+  // 棄置物：依情境決定密度（dump 最多）
+  const junkSlots = shuffleLotSlots(cx, cz)
+  const junkCount = kind === 'dump' ? 6 : 3
+  const junkMakers = [makeSofa, makeWardrobe, makeTirePile, makeBottleCluster, makeWashingMachine, makeMattress]
+  for (let i = 0; i < junkCount; i++) {
+    const slot = junkSlots.pop()
+    const junk = pick(junkMakers)()
+    junk.position.x = slot.x
+    junk.position.z = slot.z
+    junk.position.y += 0.2
+    junk.rotation.y += rand(0, Math.PI * 2)
+    scene.add(junk)
+  }
+  // 廢棄車輛：dump 必有一台，其他情境一半機率
+  if (kind === 'dump' || Math.random() < 0.5) {
+    const slot = junkSlots.pop()
+    const car = makeJunkCar()
+    car.position.set(slot.x, 0.2, slot.z)
+    car.rotation.y = rand(0, Math.PI * 2)
+    scene.add(car)
+    const box = new THREE.Box3().setFromObject(car)
+    box.expandByScalar(0.4)
+    colliders.push(box)
+  }
+
+  // 容器藏匿點（輪胎、水桶等會出現在這裡；鐵皮圍籬內只有從上方才看得到）
+  const cSlot = junkSlots.pop()
+  groundSpots.push({ x: cSlot.x, z: cSlot.z })
+  groundSpots.push({ x: cx + rand(-4, 4), z: cz + rand(-4, 4) })
+
+  // 廢棄物堆（積水目標）候選位置：取剩餘空位
+  return junkSlots.splice(0, 5).map((s) => ({ x: s.x + rand(-0.5, 0.5), z: s.z + rand(-0.5, 0.5) }))
+}
+
+// 空地內的固定擺放格位（間距足夠、避免重疊），洗牌後依序取用
+function shuffleLotSlots(cx, cz) {
+  const slots = [
+    [-8, -8], [0, -8.5], [8, -8], [-8.5, 0], [8.5, 0],
+    [-8, 8], [0, 8.5], [8, 8], [-4, -4], [4, -4], [-4, 4], [4, 4],
+  ].map(([dx, dz]) => ({ x: cx + dx + rand(-1, 1), z: cz + dz + rand(-1, 1) }))
+  return slots.sort(() => Math.random() - 0.5)
+}
+
 // 燕尾脊裝飾：在屋簷四個角落加上向上翹起的裝飾，共用於廟宇與地標建築
 function addSwallowWings(group, eaveW, eaveD, y, roofMat) {
   const wingGeo = new THREE.BoxGeometry(0.2, 0.9, 0.2)
@@ -2122,7 +2418,9 @@ export function createWorld(scene) {
 
   const roofSpots = []      // 可放水塔的屋頂 {x, y, z}
   const groundSpots = []    // 巷弄/街邊可放容器的位置
-  const lotSpots = []       // 公園角落的廢棄物藏匿點
+  const lotSpots = []       // 廢棄物藏匿點（公園角落、廢棄空地）
+  const parkBlocks = new Set() // 已放公園的街區（避免相鄰街區都是公園）
+  const zones = { parks: [], abandoned: [] }
   const siteSpots = []      // 工地內的帆布建材候選位置
   const eaveSpots = []      // 屋簷上的容器藏匿點（騎樓遮簷、建築物之間的簷面）
 
@@ -2170,10 +2468,18 @@ export function createWorld(scene) {
         siteSpots.push(...addConstructionSite(scene, colliders, cx, cz))
         continue
       }
-      if (Math.random() < 0.14) {
-        // 空地規劃成社區公園（涼亭、兒童遊樂設施、樹木）；
-        // 廢棄物堆改藏在公園疏於整理的角落
-        lotSpots.push(...addPark(scene, colliders, cx, cz))
+      if (Math.random() < 0.17) {
+        // 綠地或廢棄空地。真實都市不會出現相鄰街區都是公園的情況：
+        // 若已與公園相鄰，這個街區改為廢棄空地（鐵皮圍籬／雜草叢生／棄置廢棄物）。
+        const adjacentPark = parkBlocks.has(`${bx - 1},${bz}`) || parkBlocks.has(`${bx},${bz - 1}`)
+        if (adjacentPark || Math.random() < 0.5) {
+          zones.abandoned.push({ x: cx, z: cz })
+          lotSpots.push(...addAbandonedLot(scene, colliders, groundSpots, cx, cz))
+        } else {
+          parkBlocks.add(`${bx},${bz}`)
+          zones.parks.push({ bx, bz, x: cx, z: cz })
+          lotSpots.push(...addPark(scene, colliders, cx, cz))
+        }
         continue
       }
 
@@ -2565,7 +2871,7 @@ export function createWorld(scene) {
     place(extra, 6 - containerPlaced, true, 'container', makeContainer, centerPos)
   }
 
-  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic }
+  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones }
 }
 
 // 產生單一積水樣態的展示物件（開場圖鑑用縮圖渲染）
