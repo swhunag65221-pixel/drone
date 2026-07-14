@@ -325,6 +325,37 @@ function makeContactShadow(w, d, y = 0.02) {
   return m
 }
 
+// ---------- 共用材質池 ----------
+// 高頻工廠（行人 30、汽車 40+、雜草上百、樹木數十）原本每件物品都
+// 新建材質；改為共用材質池——外觀變化靠 pick() 從池中選，
+// 材質實例從數百顆降到數十顆（不共用水面材質：每面水的
+// emissiveIntensity 相位不同，必須各自獨立）。
+// 注意：共用材質嚴禁 per-instance 改寫屬性。
+let sharedMats = null
+function getSharedMats() {
+  if (!sharedMats) {
+    const std = (c, extra = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, ...extra })
+    sharedMats = {
+      skin: [0xe8bb95, 0xd9a06f, 0xc98a5a].map((c) => std(c)),
+      shirt: [0xd85a4a, 0x4a7ab5, 0xe8d05a, 0x5aa06a, 0xf0f0ea, 0x8a5aa0, 0x3a3a40].map((c) => std(c)),
+      pants: [0x2a3a55, 0x3a3a3a, 0x6a5a45].map((c) => std(c, { roughness: 0.85 })),
+      hat: [0xe8e0c8, 0x4a6a8a, 0xc05a3a].map((c) => std(c)),
+      carBody: [0xd8d8d8, 0x2a2a2e, 0x8a1a1a, 0x2a4a7a, 0xc8c0a8, 0x4a6a4a, 0xe0a020]
+        .map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.4, metalness: 0.3 })),
+      carCabin: new THREE.MeshStandardMaterial({ color: 0x223244, roughness: 0.2, metalness: 0.4 }),
+      wheel: std(0x1a1a1a, { roughness: 0.9 }),
+      headlight: new THREE.MeshBasicMaterial({ color: 0xfff2c0 }),
+      taillight: new THREE.MeshBasicMaterial({ color: 0xc02020 }),
+      weed: [0x6f7a3a, 0x7d8a45, 0x5f6a35, 0x8a8a50].map((c) => std(c, { roughness: 0.95 })),
+      trunk: std(0x6b4e2e, { roughness: 0.9 }),
+      bark: std(0x5c4530, { roughness: 0.95 }),
+      leaf: [0x3f7d3a, 0x4c8a3f, 0x477a42, 0x35703d].map((c) => std(c, { roughness: 0.95 })),
+      banyanRoot: std(0x8a7256, { roughness: 0.9 }),
+    }
+  }
+  return sharedMats
+}
+
 // 積水水面材質（會反光閃爍，是玩家找目標的線索）
 function makeWaterMaterial() {
   return new THREE.MeshStandardMaterial({
@@ -802,17 +833,12 @@ function makeDebris(hasWater, waterMeshes) {
 
 function makeTree() {
   const g = new THREE.Group()
+  const mats = getSharedMats()
   if (contactLevel === 'all') g.add(makeContactShadow(3.0, 3.0, 0.02))
-  const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.18, 0.26, 2.4, 8),
-    new THREE.MeshStandardMaterial({ color: 0x6b4e2e, roughness: 0.9 })
-  )
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 2.4, 8), mats.trunk)
   trunk.position.y = 1.2
   g.add(trunk)
-  const crown = new THREE.Mesh(
-    new THREE.SphereGeometry(rand(1.1, 1.7), 10, 8),
-    new THREE.MeshStandardMaterial({ color: pick([0x3f7d3a, 0x4c8a3f, 0x35703d]), roughness: 0.95 })
-  )
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(rand(1.1, 1.7), 10, 8), pick(mats.leaf))
   crown.position.y = rand(2.6, 3.2)
   crown.castShadow = true
   g.add(crown)
@@ -823,8 +849,8 @@ function makeTree() {
 function makeBanyanTree() {
   const g = new THREE.Group()
   if (contactLevel === 'all') g.add(makeContactShadow(4.4, 4.4, 0.02))
-  const barkMat = new THREE.MeshStandardMaterial({ color: 0x5c4530, roughness: 0.95 })
-  const leafMat = new THREE.MeshStandardMaterial({ color: pick([0x3f7d3a, 0x4c8a3f, 0x477a42]), roughness: 0.95 })
+  const barkMat = getSharedMats().bark
+  const leafMat = pick(getSharedMats().leaf)
 
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 2.6, 8), barkMat)
   trunk.position.y = 1.3
@@ -838,7 +864,7 @@ function makeBanyanTree() {
   g.add(crown)
 
   // 垂掛氣根
-  const rootMat = new THREE.MeshStandardMaterial({ color: 0x8a7256, roughness: 0.9 })
+  const rootMat = getSharedMats().banyanRoot
   const rootCount = 4 + Math.floor(Math.random() * 3)
   for (let i = 0; i < rootCount; i++) {
     const a = (i / rootCount) * Math.PI * 2 + rand(-0.3, 0.3)
@@ -1496,33 +1522,25 @@ function makeBoat() {
 // 街道上的汽車：純造景，沿直線自動前進（總高壓在 1.2m 以下，不與最低飛行高度衝突）
 function makeCar() {
   const g = new THREE.Group()
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: pick([0xd8d8d8, 0x2a2a2e, 0x8a1a1a, 0x2a4a7a, 0xc8c0a8, 0x4a6a4a, 0xe0a020]),
-    roughness: 0.4,
-    metalness: 0.3,
-  })
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 4.0), bodyMat)
+  const mats = getSharedMats()
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.5, 4.0), pick(mats.carBody))
   body.position.y = 0.5
   g.add(body)
-  const cabin = new THREE.Mesh(
-    new THREE.BoxGeometry(1.5, 0.4, 2.0),
-    new THREE.MeshStandardMaterial({ color: 0x223244, roughness: 0.2, metalness: 0.4 })
-  )
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.4, 2.0), mats.carCabin)
   cabin.position.set(0, 0.95, -0.25)
   g.add(cabin)
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 })
   const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.24, 10)
   for (const wx of [-0.82, 0.82]) {
     for (const wz of [-1.25, 1.25]) {
-      const wheel = new THREE.Mesh(wheelGeo, wheelMat)
+      const wheel = new THREE.Mesh(wheelGeo, mats.wheel)
       wheel.rotation.z = Math.PI / 2
       wheel.position.set(wx, 0.3, wz)
       g.add(wheel)
     }
   }
   // 頭燈（前）與尾燈（後）
-  const headMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0 })
-  const tailMat = new THREE.MeshBasicMaterial({ color: 0xc02020 })
+  const headMat = mats.headlight
+  const tailMat = mats.taillight
   for (const lx of [-0.55, 0.55]) {
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.06), headMat)
     head.position.set(lx, 0.55, 2.01)
@@ -1537,12 +1555,10 @@ function makeCar() {
 // 路上的行人：低多邊形小人，手腳會擺動、沿路邊行走
 function makePedestrian() {
   const g = new THREE.Group()
-  const skinMat = new THREE.MeshStandardMaterial({ color: pick([0xe8bb95, 0xd9a06f, 0xc98a5a]), roughness: 0.8 })
-  const shirtMat = new THREE.MeshStandardMaterial({
-    color: pick([0xd85a4a, 0x4a7ab5, 0xe8d05a, 0x5aa06a, 0xf0f0ea, 0x8a5aa0, 0x3a3a40]),
-    roughness: 0.8,
-  })
-  const pantsMat = new THREE.MeshStandardMaterial({ color: pick([0x2a3a55, 0x3a3a3a, 0x6a5a45]), roughness: 0.85 })
+  const mats = getSharedMats()
+  const skinMat = pick(mats.skin)
+  const shirtMat = pick(mats.shirt)
+  const pantsMat = pick(mats.pants)
 
   // 腿（樞軸在髖部，走路時前後擺動）
   const legGeo = new THREE.BoxGeometry(0.13, 0.62, 0.13)
@@ -1563,10 +1579,7 @@ function makePedestrian() {
   g.add(head)
   // 部分行人戴帽子
   if (Math.random() < 0.35) {
-    const hat = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.15, 0.15, 0.06, 10),
-      new THREE.MeshStandardMaterial({ color: pick([0xe8e0c8, 0x4a6a8a, 0xc05a3a]), roughness: 0.8 })
-    )
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.06, 10), pick(mats.hat))
     hat.position.y = 1.38
     g.add(hat)
   }
@@ -2024,7 +2037,7 @@ function addPark(scene, colliders, cx, cz) {
 function makeWeedTuft() {
   const weed = new THREE.Mesh(
     new THREE.ConeGeometry(rand(0.18, 0.34), rand(0.4, 0.85), 5),
-    new THREE.MeshStandardMaterial({ color: pick([0x6f7a3a, 0x7d8a45, 0x5f6a35, 0x8a8a50]), roughness: 0.95 })
+    pick(getSharedMats().weed)
   )
   weed.position.y = 0.2
   return weed
