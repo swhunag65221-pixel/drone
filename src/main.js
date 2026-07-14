@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, updateCars, updatePedestrians, updateTraffic, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
-import { initGraphics, createSky, createClouds, updateClouds, SKY_HORIZON, TIERS } from './graphics.js'
+import { initGraphics, createComposer, createSky, createClouds, updateClouds, SKY_HORIZON, TIERS } from './graphics.js'
 
 const GAME_TIME = 120     // 秒
 const MARK_RANGE = 45     // 可標記的最大距離（公尺）
@@ -55,6 +55,9 @@ scene.add(sky)
 const clouds = gfx.flags.clouds ? createClouds() : null
 if (clouds) scene.add(clouds)
 
+// 後製合成器（僅高畫質；swiftshader/低階裝置永不啟動）
+const composer = gfx.flags.post ? createComposer(renderer, scene, camera) : null
+
 const worldGroup = new THREE.Group()
 scene.add(worldGroup)
 
@@ -87,6 +90,10 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix()
   renderer.setSize(window.innerWidth, window.innerHeight)
   gfx.applyResize() // 依畫質分級重新套用 pixelRatio（旋轉螢幕/搬移視窗時）
+  if (composer) {
+    composer.setPixelRatio(renderer.getPixelRatio())
+    composer.setSize(window.innerWidth, window.innerHeight)
+  }
 })
 
 // ---------- UI 元素 ----------
@@ -363,6 +370,10 @@ const clock = new THREE.Clock()
 // 定格模式（?freeze=1 停止車流/行人/號誌，供固定鏡位截圖）、幀率統計
 const WATER_BASE = 0.55 // ACES 會壓暗高光：提高脈動基準與振幅讓峰值仍夠亮
 const WATER_AMP = 0.5
+// 高畫質（後製開啟）時峰值拉到 3.0：超過 bloom 閾值，
+// 積水線索在脈動最亮時會「發光綻放」——後製反而強化玩法可讀性
+const WATER_MIN = WATER_BASE - WATER_AMP
+const WATER_MAX_POST = 3.0
 let waterPhaseOverride = null // null=正常動畫；'max'/'min'=定格在最亮/最暗（ΔLuma 量測用）
 const FREEZE = new URLSearchParams(location.search).has('freeze')
 const frameTimes = []
@@ -376,12 +387,14 @@ function animate() {
   frameTimes.push(rawDt)
   if (frameTimes.length > 120) frameTimes.shift()
 
-  // 水面閃爍（找目標的視覺線索）
+  // 水面閃爍（找目標的視覺線索）；高畫質峰值超過 bloom 閾值產生光暈
+  const wMax = composer ? WATER_MAX_POST : WATER_BASE + WATER_AMP
   waterMeshes.forEach((w, i) => {
-    w.material.emissiveIntensity =
-      waterPhaseOverride === 'max' ? WATER_BASE + WATER_AMP
-      : waterPhaseOverride === 'min' ? WATER_BASE - WATER_AMP
-      : WATER_BASE + WATER_AMP * Math.sin(t * 4 + i * 1.7)
+    const s01 =
+      waterPhaseOverride === 'max' ? 1
+      : waterPhaseOverride === 'min' ? 0
+      : 0.5 + 0.5 * Math.sin(t * 4 + i * 1.7)
+    w.material.emissiveIntensity = WATER_MIN + (wMax - WATER_MIN) * s01
   })
 
   // 天空穹頂跟隨攝影機（地平線視覺位置穩定）；雲慢速漂移
@@ -421,7 +434,8 @@ function animate() {
     updateHUD()
   }
 
-  renderer.render(scene, camera)
+  if (composer) composer.render()
+  else renderer.render(scene, camera)
 }
 
 // ---------- 畫質選項 UI ----------
