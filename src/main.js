@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, updateCars, updatePedestrians, updateTraffic, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
-import { initGraphics, TIERS } from './graphics.js'
+import { initGraphics, createSky, createClouds, updateClouds, SKY_HORIZON, TIERS } from './graphics.js'
 
 const GAME_TIME = 120     // 秒
 const MARK_RANGE = 45     // 可標記的最大距離（公尺）
@@ -22,14 +22,16 @@ renderer.outputColorSpace = THREE.SRGBColorSpace // r152+ 已是預設，明示�
 app.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xbfe0f5)
-scene.fog = new THREE.Fog(0xbfe0f5, 170, 480)
+// 霧色＝天空穹頂的地平線色：遠景建築融入天空、看不見世界邊界（大氣感的關鍵）
+scene.background = new THREE.Color(SKY_HORIZON)
+scene.fog = new THREE.Fog(SKY_HORIZON, 170, 480)
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 600)
 
-const hemi = new THREE.HemisphereLight(0xcfe6ff, 0x8a8f78, 1.25)
+// 黃金時刻調色：天光偏藍、地面反射光偏暖土色、太陽偏暖
+const hemi = new THREE.HemisphereLight(0xd8e8ff, 0x9a8a70, 1.25)
 scene.add(hemi)
-const sun = new THREE.DirectionalLight(0xfff2df, 3.2)
+const sun = new THREE.DirectionalLight(0xffdfb0, 3.2)
 sun.position.set(130, 190, 90)
 sun.castShadow = true
 sun.shadow.mapSize.set(2048, 2048)
@@ -42,6 +44,12 @@ scene.add(sun)
 
 // 畫質分級（URL/記憶/GPU 偵測；須在第一次 render 前初始化，陰影管線才可完整切換）
 const gfx = initGraphics({ renderer, camera, scene, sun })
+
+// 天空穹頂與雲：加在 scene（非 worldGroup），回合重建不受影響
+const sky = createSky(sun.position)
+scene.add(sky)
+const clouds = gfx.flags.clouds ? createClouds() : null
+if (clouds) scene.add(clouds)
 
 const worldGroup = new THREE.Group()
 scene.add(worldGroup)
@@ -370,6 +378,10 @@ function animate() {
       : waterPhaseOverride === 'min' ? WATER_BASE - WATER_AMP
       : WATER_BASE + WATER_AMP * Math.sin(t * 4 + i * 1.7)
   })
+
+  // 天空穹頂跟隨攝影機（地平線視覺位置穩定）；雲慢速漂移
+  sky.position.set(camera.position.x, 0, camera.position.z)
+  if (clouds && !FREEZE) updateClouds(clouds, dt)
 
   // 交通號誌、汽車與行人（暫停時凍結；?freeze=1 供視覺驗證定格）
   if (state !== 'paused' && !FREEZE) {
