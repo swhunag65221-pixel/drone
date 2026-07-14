@@ -3435,6 +3435,38 @@ export function makePreviewObject(type) {
   }
 }
 
+// 找到積水目標時的水花粒子迸發（加法混色亮點、0.8 秒消散）
+export function makeSparkBurst(pos) {
+  const n = 22
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
+  const mat = new THREE.PointsMaterial({
+    color: 0x7fe0ff, size: 0.4, transparent: true, opacity: 1,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  })
+  const pts = new THREE.Points(geo, mat)
+  pts.position.copy(pos)
+  const vels = Array.from({ length: n }, () =>
+    new THREE.Vector3(rand(-1, 1), rand(0.6, 2.0), rand(-1, 1)).normalize().multiplyScalar(rand(2.5, 5)))
+  return {
+    obj: pts,
+    t: 0,
+    update(dt) {
+      this.t += dt
+      const p = geo.attributes.position.array
+      for (let i = 0; i < n; i++) {
+        vels[i].y -= 6 * dt
+        p[i * 3] += vels[i].x * dt
+        p[i * 3 + 1] += vels[i].y * dt
+        p[i * 3 + 2] += vels[i].z * dt
+      }
+      geo.attributes.position.needsUpdate = true
+      mat.opacity = Math.max(0, 1 - this.t / 0.8)
+      return this.t < 0.8
+    },
+  }
+}
+
 // 遊戲結束後標示「未找到」地點的紅色光柱＋類型文字標籤
 export function makeMissedMarker(labelText) {
   const g = new THREE.Group()

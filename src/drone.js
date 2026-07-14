@@ -14,6 +14,9 @@ export class DroneController {
     this.velocity = new THREE.Vector3()
     this.keys = new Set()
     this.enabled = false
+    this.time = 0
+    this.baseFov = camera.fov
+    this._bobOffset = 0 // 目前套用在 camera.y 上的懸停浮動量（先扣除再積分，物理不受影響）
 
     window.addEventListener('keydown', (e) => {
       this.keys.add(e.code)
@@ -36,9 +39,15 @@ export class DroneController {
     this.camera.position.copy(position)
     this.camera.rotation.set(-0.15, 0, 0)
     this.velocity.set(0, 0, 0)
+    this._bobOffset = 0
+    this.camera.fov = this.baseFov
+    this.camera.updateProjectionMatrix()
   }
 
   update(dt, colliders) {
+    this.time += dt
+    // 先移除上一幀的懸停浮動，讓碰撞/邊界以「真實位置」計算
+    this.camera.position.y -= this._bobOffset
     const yaw = this.camera.rotation.y
     const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw))
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw))
@@ -85,9 +94,21 @@ export class DroneController {
     pos.y = THREE.MathUtils.clamp(pos.y, WORLD_BOUNDS.min.y, WORLD_BOUNDS.max.y)
     pos.z = THREE.MathUtils.clamp(pos.z, WORLD_BOUNDS.min.z, WORLD_BOUNDS.max.z)
 
-    // 側移時機身微傾，增加飛行感
+    // 側移時機身微傾，增加飛行感（Phase H：傾角略加大）
     const lateral = this.velocity.dot(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)))
-    this.camera.rotation.z = THREE.MathUtils.lerp(this.camera.rotation.z, -lateral * 0.006, 1 - Math.exp(-8 * dt))
+    this.camera.rotation.z = THREE.MathUtils.lerp(this.camera.rotation.z, -lateral * 0.0085, 1 - Math.exp(-8 * dt))
+
+    // 懸停微浮動：振幅極小（±3.5cm），45m 標記距離下不影響瞄準
+    this._bobOffset = Math.sin(this.time * 1.7) * 0.035
+    pos.y += this._bobOffset
+
+    // 速度感 FOV：高速時視野微擴（75→最多+3°）
+    const speedRatio = Math.min(1, Math.hypot(this.velocity.x, this.velocity.z) / MAX_SPEED)
+    const targetFov = this.baseFov + speedRatio * 3
+    if (Math.abs(this.camera.fov - targetFov) > 0.02) {
+      this.camera.fov = THREE.MathUtils.lerp(this.camera.fov, targetFov, 1 - Math.exp(-4 * dt))
+      this.camera.updateProjectionMatrix()
+    }
   }
 
   _collides(p, colliders) {
