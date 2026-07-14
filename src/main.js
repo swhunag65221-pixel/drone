@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, updateCars, updatePedestrians, updateTraffic, TARGET_TYPES } from './world.js'
+import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, makeSparkBurst, updateCars, updatePedestrians, updateTraffic, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
 import { initGraphics, createComposer, createSky, createClouds, updateClouds, SKY_HORIZON, TIERS } from './graphics.js'
 
@@ -287,6 +287,10 @@ window.addEventListener('mousedown', (e) => {
     const marker = makeFoundMarker(true)
     marker.position.copy(worldPos)
     worldGroup.add(marker)
+    // 水花粒子迸發（找到目標的即時回饋）
+    const burst = makeSparkBurst(worldPos.clone().add(new THREE.Vector3(0, 0.6, 0)))
+    worldGroup.add(burst.obj)
+    bursts.push(burst)
     if (foundCount === targets.length) {
       const bonus = Math.floor(timeLeft * 2)
       score += bonus
@@ -375,6 +379,7 @@ const WATER_AMP = 0.5
 const WATER_MIN = WATER_BASE - WATER_AMP
 const WATER_MAX_POST = 3.0
 let waterPhaseOverride = null // null=正常動畫；'max'/'min'=定格在最亮/最暗（ΔLuma 量測用）
+const bursts = [] // 進行中的粒子迸發
 const FREEZE = new URLSearchParams(location.search).has('freeze')
 const frameTimes = []
 
@@ -403,6 +408,16 @@ function animate() {
 
   // 動態水波：捲動運河法線貼圖 offset
   for (const a of animatedTextures) a.tex.offset.set(t * a.sx, t * a.sy)
+
+  // 粒子迸發：更新並回收結束的
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    if (!bursts[i].update(dt)) {
+      bursts[i].obj.removeFromParent()
+      bursts[i].obj.geometry.dispose()
+      bursts[i].obj.material.dispose()
+      bursts.splice(i, 1)
+    }
+  }
 
   // 交通號誌、汽車與行人（暫停時凍結；?freeze=1 供視覺驗證定格）
   if (state !== 'paused' && !FREEZE) {
