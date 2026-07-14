@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, updateCars, updatePedestrians, TARGET_TYPES } from './world.js'
+import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, updateCars, updatePedestrians, updateTraffic, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
 
 const GAME_TIME = 120     // 秒
@@ -37,7 +37,7 @@ scene.add(sun)
 const worldGroup = new THREE.Group()
 scene.add(worldGroup)
 
-let colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians
+let colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic
 
 function disposeWorld() {
   worldGroup.traverse((obj) => {
@@ -53,7 +53,7 @@ function disposeWorld() {
 
 function buildWorld() {
   disposeWorld()
-  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians } = createWorld(worldGroup))
+  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic } = createWorld(worldGroup))
 }
 
 buildWorld()
@@ -344,10 +344,11 @@ function animate() {
     w.material.emissiveIntensity = 0.35 + 0.3 * Math.sin(t * 4 + i * 1.7)
   })
 
-  // 街道汽車與行人自動移動（暫停時凍結）
+  // 交通號誌、汽車與行人（暫停時凍結）
   if (state !== 'paused') {
-    updateCars(cars, dt)
-    updatePedestrians(pedestrians, dt)
+    updateTraffic(traffic, dt)
+    updateCars(cars, dt, traffic)
+    updatePedestrians(pedestrians, dt, traffic)
   }
 
   if (state === 'playing') {

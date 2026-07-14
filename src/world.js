@@ -1407,21 +1407,141 @@ function makePedestrian() {
 // 行人自動走動：沿所屬街區的人行道四周繞行（不進入車道），
 // 轉角自動轉向、手腳擺動。
 const WALK_CORNERS = [[1, 1], [-1, 1], [-1, -1], [1, -1]] // 人行道四個轉角（順序＝逆時針）
-export function updatePedestrians(peds, dt) {
+const WALK_R = BLOCK / 2 + 0.6 // 人行道行走線：距離街區中心的偏移
+
+// ---------- 交通號誌週期 ----------
+// 0~8s 南北向綠燈、8~10s 南北向黃燈、10~18s 東西向綠燈、18~20s 東西向黃燈
+const SIG_CYCLE = 20
+const nsGreen = (t) => t < 8
+const ewGreen = (t) => t >= 10 && t < 18
+// 行人穿越窗口：只在平行車流綠燈初期起步，確保綠燈（含黃燈）內走完，
+// 不會與取得綠燈的橫向車流衝突
+const canPedCross = (walkAxis, t) => (walkAxis === 'z' ? t < 2 : t >= 10 && t < 12)
+
+const LAMP_ON = [0xe83030, 0xffc72e, 0x2ee06a]   // 紅、黃、綠（亮）
+const LAMP_OFF = [0x401010, 0x403208, 0x104020]  // 紅、黃、綠（暗）
+function setLamps(mats, onIdx) {
+  for (let i = 0; i < 3; i++) mats[i].color.setHex(i === onIdx ? LAMP_ON[i] : LAMP_OFF[i])
+}
+
+// 每幀更新號誌相位與燈色（燈面材質全城共用，切換成本 O(1)）
+export function updateTraffic(traffic, dt) {
+  traffic.t = (traffic.t + dt) % SIG_CYCLE
+  const t = traffic.t
+  setLamps(traffic.lampMats.ns, nsGreen(t) ? 2 : t < 10 ? 1 : 0)
+  setLamps(traffic.lampMats.ew, ewGreen(t) ? 2 : t >= 18 ? 1 : 0)
+}
+
+// 號誌燈：直立桿＋懸臂＋橫式三燈燈箱（燈面朝道路兩側）
+function makeTrafficLight(lampMats, poleMat, headMat) {
+  const g = new THREE.Group()
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 5.2, 8), poleMat)
+  pole.position.y = 2.6
+  g.add(pole)
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4.4, 6), poleMat)
+  arm.rotation.z = Math.PI / 2
+  arm.position.set(-2.2, 5.1, 0)
+  g.add(arm)
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.44, 0.2), headMat)
+  head.position.set(-4.2, 4.72, 0)
+  g.add(head)
+  for (let i = 0; i < 3; i++) {
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.28), lampMats[i])
+    lamp.position.set(-4.2 - 0.38 + i * 0.38, 4.72, 0)
+    g.add(lamp)
+  }
+  return g
+}
+
+// 沿人行道環線定位一個點的周長參數（供斑馬線入口觸發點使用）
+function locateLoopS(dx, dz, R) {
+  const L = 2 * R
+  if (Math.abs(dz - R) < 0.05) return 0 * L + ((R - dx) / (2 * R)) * L
+  if (Math.abs(dx + R) < 0.05) return 1 * L + ((R - dz) / (2 * R)) * L
+  if (Math.abs(dz + R) < 0.05) return 2 * L + ((dx + R) / (2 * R)) * L
+  return 3 * L + ((dz + R) / (2 * R)) * L
+}
+
+// 本幀是否經過周長參數 sT（考慮方向與繞圈）
+function passedS(sOld, sNew, sT, dir, total) {
+  const travelled = dir > 0 ? (sNew - sOld + total) % total : (sOld - sNew + total) % total
+  const d = dir > 0 ? (sT - sOld + total) % total : (sOld - sT + total) % total
+  return d > 0 && d <= travelled
+}
+
+// 行人：平時沿人行道繞行街區；經過斑馬線入口時可能過馬路——
+// 依交通號誌等待綠燈，只走斑馬線（畫線位置），到對面後改繞新街區。
+export function updatePedestrians(peds, dt, traffic) {
   for (const w of peds) {
+    const { legL, legR, armL, armR } = w.group.userData.limbs
+
+    if (w.mode === 'wait') {
+      // 站在路緣等待號誌，手腳漸停
+      legL.rotation.x *= 0.85; legR.rotation.x *= 0.85
+      armL.rotation.x *= 0.85; armR.rotation.x *= 0.85
+      if (canPedCross(w.cross.walkAxis, traffic.t)) {
+        w.mode = 'cross'
+        w.u = 0
+      }
+      continue
+    }
+
     // 走路擺動：步頻與行走速度成正比
     w.phase += dt * w.speed * 4.2
     const sw = Math.sin(w.phase) * 0.5
-    const { legL, legR, armL, armR } = w.group.userData.limbs
     legL.rotation.x = sw
     legR.rotation.x = -sw
     armL.rotation.x = -sw * 0.7
     armR.rotation.x = sw * 0.7
 
-    // 沿人行道周長前進（dir=-1 為順時針），依所在邊算出位置與面向
+    if (w.mode === 'cross') {
+      // 沿斑馬線直線穿越（過馬路時步伐稍快）
+      const c = w.cross
+      const dx = c.to.x - c.from.x
+      const dz = c.to.z - c.from.z
+      const dist = Math.hypot(dx, dz)
+      w.u = Math.min(1, w.u + (w.speed * 1.4 * dt) / dist)
+      // 上下路緣的高度過渡（人行道基座高 0.2）
+      const edge = Math.min(w.u, 1 - w.u)
+      const y = 0.02 + 0.18 * (1 - Math.min(edge / 0.1, 1))
+      w.group.position.set(c.from.x + dx * w.u, y, c.from.z + dz * w.u)
+      w.group.rotation.y = Math.atan2(dx, dz)
+      if (w.u >= 1) {
+        // 抵達對面：改繞新街區的人行道
+        w.bx = c.toBx
+        w.bz = c.toBz
+        w.cx = -HALF + w.bx * PITCH + BLOCK / 2
+        w.cz = -HALF + w.bz * PITCH + BLOCK / 2
+        w.s = locateLoopS(c.to.x - w.cx, c.to.z - w.cz, w.R)
+        w.mode = 'loop'
+        w.group.position.y = 0.2
+      }
+      continue
+    }
+
+    // 沿人行道周長前進（dir=-1 為順時針）
     const L = 2 * w.R
     const total = 4 * L
+    const sOld = w.s
     w.s = ((w.s + w.dir * w.speed * dt) % total + total) % total
+
+    // 經過斑馬線入口：有機率決定過馬路（綠燈直接走，否則在路緣等待）
+    const list = traffic.crossings.get(w.bx + ',' + w.bz)
+    if (list) {
+      let chosen = null
+      for (const c of list) {
+        if (passedS(sOld, w.s, c.s, w.dir, total) && Math.random() < 0.45) { chosen = c; break }
+      }
+      if (chosen) {
+        w.cross = chosen
+        w.u = 0
+        w.group.position.set(chosen.from.x, 0.2, chosen.from.z)
+        w.group.rotation.y = Math.atan2(chosen.to.x - chosen.from.x, chosen.to.z - chosen.from.z)
+        w.mode = canPedCross(chosen.walkAxis, traffic.t) ? 'cross' : 'wait'
+        continue
+      }
+    }
+
     const k = Math.floor(w.s / L)
     const u = (w.s % L) / L
     const a = WALK_CORNERS[k]
@@ -1432,17 +1552,49 @@ export function updatePedestrians(peds, dt) {
   }
 }
 
-// 汽車自動前進：沿所屬街道直線行駛，開出城市邊界後從另一端回來
-export function updateCars(cars, dt) {
+// 汽車：沿所屬街道直行；紅黃燈時在停止線（斑馬線之前）停車，
+// 與前車保持距離排隊，綠燈起步，開出城市邊界後從另一端回來。
+const CAR_STOP_D = STREET / 2 + 6.4 // 停止線與路口中心的距離（車頭停在斑馬線前）
+export function updateCars(cars, dt, traffic) {
+  const t = traffic.t
+  const stopForZ = !nsGreen(t)
+  const stopForX = !ewGreen(t)
   const limit = HALF + 30
   for (const c of cars) {
     const p = c.group.position
+    const coord = c.axis === 'z' ? p.z : p.x
+    let step = c.speed * dt
+
+    // 紅黃燈：尚未越過停止線的車，在線前停下；已越線者繼續通過（不停在斑馬線上）
+    if (c.sig && (c.axis === 'z' ? stopForZ : stopForX)) {
+      const lines = c.axis === 'z' ? traffic.stopZs : traffic.stopXs
+      let dMin = Infinity
+      for (const line of lines) {
+        const d = (line - coord) * c.dir
+        if (d > 0 && d < dMin) dMin = d
+      }
+      if (dMin !== Infinity && dMin > CAR_STOP_D) step = Math.min(step, dMin - CAR_STOP_D)
+      else if (dMin !== Infinity && dMin > CAR_STOP_D - 0.2) step = 0
+    }
+
+    // 與同車道前車保持安全距離（紅燈排隊不重疊）
+    let gapMin = Infinity
+    for (const o of cars) {
+      if (o === c || o.axis !== c.axis || o.dir !== c.dir) continue
+      const op = o.group.position
+      const laneDiff = c.axis === 'z' ? Math.abs(op.x - p.x) : Math.abs(op.z - p.z)
+      if (laneDiff > 1) continue
+      const gap = ((c.axis === 'z' ? op.z : op.x) - coord) * c.dir
+      if (gap > 0 && gap < gapMin) gapMin = gap
+    }
+    if (gapMin !== Infinity) step = Math.min(step, Math.max(0, gapMin - 5.2))
+
     if (c.axis === 'z') {
-      p.z += c.dir * c.speed * dt
+      p.z += c.dir * step
       if (c.dir > 0 && p.z > limit) p.z = -limit
       else if (c.dir < 0 && p.z < -limit) p.z = limit
     } else {
-      p.x += c.dir * c.speed * dt
+      p.x += c.dir * step
       if (c.dir > 0 && p.x > limit) p.x = -limit
       else if (c.dir < 0 && p.x < -limit) p.x = limit
     }
@@ -1923,7 +2075,7 @@ export function createWorld(scene) {
         car.position.set(sx - dir * laneOff, 0.04, rand(-HALF, HALF))
         car.rotation.y = dir > 0 ? 0 : Math.PI
         scene.add(car)
-        cars.push({ group: car, axis: 'z', dir, speed: rand(8, 13) })
+        cars.push({ group: car, axis: 'z', dir, speed: rand(8, 13), sig: i < GRID })
       }
     }
   }
@@ -1938,7 +2090,7 @@ export function createWorld(scene) {
         car.position.set(rand(-HALF, HALF), 0.04, sz + dir * laneOff)
         car.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2
         scene.add(car)
-        cars.push({ group: car, axis: 'x', dir, speed: rand(8, 13) })
+        cars.push({ group: car, axis: 'x', dir, speed: rand(8, 13), sig: j < GRID })
       }
     }
   }
@@ -1946,7 +2098,6 @@ export function createWorld(scene) {
   // 行人走在人行道上（符合交通法規：不進入車道）：
   // 沿著各街區基座（人行道）的四周繞行，轉角自動轉向，路徑也會經過騎樓下。
   const pedestrians = []
-  const walkR = BLOCK / 2 + 0.6 // 行走線：基座（半寬 BLOCK/2+1）外緣內側 0.4m
   const PED_COUNT = 30
   for (let k = 0; k < PED_COUNT; k++) {
     const bx = Math.floor(Math.random() * GRID)
@@ -1958,11 +2109,14 @@ export function createWorld(scene) {
     scene.add(ped)
     pedestrians.push({
       group: ped,
-      cx: pcx, cz: pcz, R: walkR,
-      s: rand(0, 8 * walkR),                 // 沿人行道周長的行進距離
+      bx, bz, cx: pcx, cz: pcz, R: WALK_R,
+      s: rand(0, 8 * WALK_R),                // 沿人行道周長的行進距離
       dir: Math.random() < 0.5 ? 1 : -1,     // 順時針或逆時針繞行
       speed: rand(1.1, 1.9),
       phase: rand(0, Math.PI * 2),
+      mode: 'loop',                          // loop | wait（等紅燈）| cross（過斑馬線）
+      cross: null,
+      u: 0,
     })
   }
 
@@ -2209,6 +2363,69 @@ export function createWorld(scene) {
     }
   }
 
+  // ---------- 交通號誌 ----------
+  // 全城號誌同步兩相位（南北向／東西向輪流綠燈）；
+  // 每個畫有斑馬線的路口設兩支號誌桿（南北向與東西向車流各一）。
+  // 燈面材質全城共用，換相位時只需改 6 個材質的顏色。
+  const traffic = {
+    t: rand(0, SIG_CYCLE),
+    lampMats: {
+      ns: LAMP_OFF.map((c) => new THREE.MeshBasicMaterial({ color: c })),
+      ew: LAMP_OFF.map((c) => new THREE.MeshBasicMaterial({ color: c })),
+    },
+    stopZs: [],       // 南北向車流的停止線（有號誌的東西向街道中心）
+    stopXs: [],       // 東西向車流的停止線（有號誌的南北向街道中心）
+    crossings: new Map(), // 每個街區可用的斑馬線入口
+  }
+  {
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.6 })
+    const headMat = new THREE.MeshStandardMaterial({ color: 0x24343c, roughness: 0.6 })
+    const addCrossing = (bx2, bz2, entry) => {
+      const key = bx2 + ',' + bz2
+      if (!traffic.crossings.has(key)) traffic.crossings.set(key, [])
+      traffic.crossings.get(key).push(entry)
+    }
+    for (let j = 1; j < GRID; j++) {
+      if (j !== CANAL_ROW) traffic.stopZs.push(-HALF + j * PITCH - STREET / 2)
+    }
+    for (let i = 1; i < GRID; i++) traffic.stopXs.push(-HALF + i * PITCH - STREET / 2)
+
+    for (let i = 1; i < GRID; i++) {
+      for (let j = 1; j < GRID; j++) {
+        if (j === CANAL_ROW) continue
+        const ix = -HALF + i * PITCH - STREET / 2
+        const iz = -HALF + j * PITCH - STREET / 2
+
+        // 號誌桿：南北向車流（燈面朝 ±z）與東西向車流（旋轉 90°）各一支
+        const lightNS = makeTrafficLight(traffic.lampMats.ns, poleMat, headMat)
+        lightNS.position.set(ix + 6.7, 0, iz + 6.7)
+        scene.add(lightNS)
+        const lightEW = makeTrafficLight(traffic.lampMats.ew, poleMat, headMat)
+        lightEW.rotation.y = Math.PI / 2
+        lightEW.position.set(ix - 6.7, 0, iz - 6.7)
+        scene.add(lightEW)
+
+        // 斑馬線入口（與地面畫線位置一致），登錄到相鄰街區供行人使用
+        const cxW = ix - STREET / 2 - BLOCK / 2
+        const cxE = ix + STREET / 2 + BLOCK / 2
+        const czN = iz - STREET / 2 - BLOCK / 2
+        const czS = iz + STREET / 2 + BLOCK / 2
+        // 縱向斑馬線（南北向行走，橫越東西向街道，位於路口西側）
+        const x0 = ix - STREET / 2 - 2.2
+        const pN = { x: x0, z: czN + WALK_R }
+        const pS = { x: x0, z: czS - WALK_R }
+        addCrossing(i - 1, j - 1, { from: pN, to: pS, toBx: i - 1, toBz: j, walkAxis: 'z', s: locateLoopS(x0 - cxW, WALK_R, WALK_R) })
+        addCrossing(i - 1, j, { from: pS, to: pN, toBx: i - 1, toBz: j - 1, walkAxis: 'z', s: locateLoopS(x0 - cxW, -WALK_R, WALK_R) })
+        // 橫向斑馬線（東西向行走，橫越南北向街道，位於路口北側）
+        const z0 = iz - STREET / 2 - 2.2
+        const pW = { x: cxW + WALK_R, z: z0 }
+        const pE = { x: cxE - WALK_R, z: z0 }
+        addCrossing(i - 1, j - 1, { from: pW, to: pE, toBx: i, toBz: j - 1, walkAxis: 'x', s: locateLoopS(WALK_R, z0 - czN, WALK_R) })
+        addCrossing(i, j - 1, { from: pE, to: pW, toBx: i - 1, toBz: j - 1, walkAxis: 'x', s: locateLoopS(-WALK_R, z0 - czN, WALK_R) })
+      }
+    }
+  }
+
   // ---------- 佈置目標與誘餌 ----------
   const shuffle = (arr) => arr.sort(() => Math.random() - 0.5)
 
@@ -2348,7 +2565,7 @@ export function createWorld(scene) {
     place(extra, 6 - containerPlaced, true, 'container', makeContainer, centerPos)
   }
 
-  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians }
+  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic }
 }
 
 // 產生單一積水樣態的展示物件（開場圖鑑用縮圖渲染）
