@@ -2147,6 +2147,118 @@ function addSwallowWings(group, eaveW, eaveD, y, roofMat) {
   }
 }
 
+// 臺南市美術館二館的招牌文字
+function makeMuseumSignTexture() {
+  const c = document.createElement('canvas')
+  c.width = 512; c.height = 128
+  const g = c.getContext('2d')
+  g.fillStyle = '#f4f4f0'
+  g.fillRect(0, 0, 512, 128)
+  g.fillStyle = '#243440'
+  g.font = 'bold 52px "Noto Sans TC", "Microsoft JhengHei", sans-serif'
+  g.textAlign = 'center'
+  g.fillText('臺南市美術館', 256, 62)
+  g.font = '26px sans-serif'
+  g.fillText('TAINAN ART MUSEUM', 256, 102)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
+// 臺南市美術館二館：白色堆疊量體＋標誌性的白色五角形遮陽頂棚
+// （純造景地標，供飛行時辨認方向）
+function addArtMuseum(scene, colliders, cx, cz) {
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.6 })
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x2a3a44, roughness: 0.15, metalness: 0.4 })
+
+  // 淺色美術館廣場
+  const plaza = new THREE.Mesh(
+    new THREE.PlaneGeometry(BLOCK - 0.5, BLOCK - 0.5),
+    new THREE.MeshStandardMaterial({ color: 0xd9d5cb, roughness: 0.9 })
+  )
+  plaza.rotation.x = -Math.PI / 2
+  plaza.position.set(cx, 0.21, cz)
+  scene.add(plaza)
+
+  // 白色方盒量體錯落堆疊（坂茂設計的碎形堆疊語彙）
+  const boxes = [
+    [10, 4.5, 9, -3.5, -3],
+    [8, 7.5, 8, 2, 2.5],
+    [7, 10.5, 7, -2, 3.5],
+    [6.5, 6, 6.5, 4.5, -4],
+    [9, 3, 6, 4, -0.5],
+    [5, 13, 5, 0.5, 0.5],
+  ]
+  for (const [w, h, d, dx, dz] of boxes) {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), whiteMat)
+    box.position.set(cx + dx, 0.2 + h / 2, cz + dz)
+    box.castShadow = true
+    scene.add(box)
+    const b = new THREE.Box3().setFromObject(box)
+    b.expandByScalar(0.4)
+    colliders.push(b)
+    // 部分量體加上橫向玻璃帶窗
+    if (h >= 4.5) {
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(w + 0.06, 0.7, d + 0.06), glassMat)
+      strip.position.set(cx + dx, 0.2 + h * 0.55, cz + dz)
+      scene.add(strip)
+    }
+  }
+
+  // 標誌性五角形遮陽頂棚：大五角形平板＋上層小五角形，白色細柱撐起
+  const makePentagon = (radius, thickness) => {
+    const shape = new THREE.Shape()
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i / 5) * Math.PI * 2
+      const px = Math.cos(a) * radius
+      const pz = Math.sin(a) * radius
+      if (i === 0) shape.moveTo(px, pz)
+      else shape.lineTo(px, pz)
+    }
+    shape.closePath()
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false })
+    const mesh = new THREE.Mesh(geo, whiteMat)
+    mesh.rotation.x = Math.PI / 2
+    return mesh
+  }
+  const canopy = makePentagon(12.2, 0.5)
+  canopy.position.set(cx, 12.8, cz)
+  scene.add(canopy)
+  const canopyBox = new THREE.Box3().setFromObject(canopy)
+  colliders.push(canopyBox)
+  const canopy2 = makePentagon(6.8, 0.4)
+  canopy2.rotation.z = Math.PI / 5 // 與大頂棚錯開角度，做出層疊感
+  canopy2.position.set(cx + 0.5, 14.2, cz - 0.5)
+  scene.add(canopy2)
+
+  // 頂棚支柱（細白柱，無人機可從柱間穿越頂棚下方）
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + 0.31
+    const r = i % 2 === 0 ? 9.5 : 6.5
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 12.8, 8), whiteMat)
+    col.position.set(cx + Math.cos(a) * r, 0.2 + 6.4, cz + Math.sin(a) * r)
+    scene.add(col)
+  }
+
+  // 入口招牌矮牆
+  const sign = new THREE.Mesh(
+    new THREE.BoxGeometry(6.4, 1.6, 0.4),
+    [whiteMat, whiteMat, whiteMat, whiteMat,
+      new THREE.MeshBasicMaterial({ map: makeMuseumSignTexture() }), whiteMat]
+  )
+  sign.position.set(cx - 3, 1.0, cz + BLOCK / 2 - 1.2)
+  scene.add(sign)
+  const signBox = new THREE.Box3().setFromObject(sign)
+  colliders.push(signBox)
+
+  // 廣場樹木點綴
+  for (const [tx, tz] of [[-9, 9], [9, 8], [-10, -9], [10, -9]]) {
+    const tree = makeTree()
+    tree.position.set(cx + tx, 0.2, cz + tz)
+    scene.add(tree)
+  }
+}
+
 // 赤崁樓：城市中央廣場的地標建築（純造景、不可互動，僅供飛行時辨認方向）
 function makeChihkanTower() {
   const g = new THREE.Group()
@@ -2429,11 +2541,15 @@ export function createWorld(scene) {
 
   // 預先固定選出 3 個街區作為工地（帆布積水只出現在工地，保證數量充足）
   const centerIdx = Math.floor(GRID / 2)
+  // 臺南市美術館二館固定座落於市中心西側街區
+  const MUSEUM_BX = centerIdx - 2
+  const MUSEUM_BZ = centerIdx
   const siteBlocks = new Set()
   while (siteBlocks.size < 3) {
     const sbx = Math.floor(Math.random() * GRID)
     const sbz = Math.floor(Math.random() * GRID)
     if (sbx === centerIdx && sbz === centerIdx) continue
+    if (sbx === MUSEUM_BX && sbz === MUSEUM_BZ) continue
     siteBlocks.add(`${sbx},${sbz}`)
   }
 
@@ -2462,6 +2578,10 @@ export function createWorld(scene) {
         const landmarkBox = new THREE.Box3().setFromObject(landmark)
         landmarkBox.expandByScalar(0.9)
         colliders.push(landmarkBox)
+        continue
+      }
+      if (bx === MUSEUM_BX && bz === MUSEUM_BZ) {
+        addArtMuseum(scene, colliders, cx, cz)
         continue
       }
       if (siteBlocks.has(`${bx},${bz}`)) {
