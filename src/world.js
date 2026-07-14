@@ -1404,29 +1404,31 @@ function makePedestrian() {
   return g
 }
 
-// 行人自動走動：沿路邊直線行走、手腳擺動，走出城市邊界後從另一端回來
+// 行人自動走動：沿所屬街區的人行道四周繞行（不進入車道），
+// 轉角自動轉向、手腳擺動。
+const WALK_CORNERS = [[1, 1], [-1, 1], [-1, -1], [1, -1]] // 人行道四個轉角（順序＝逆時針）
 export function updatePedestrians(peds, dt) {
-  const limit = HALF + 10
   for (const w of peds) {
     // 走路擺動：步頻與行走速度成正比
     w.phase += dt * w.speed * 4.2
-    const s = Math.sin(w.phase) * 0.5
+    const sw = Math.sin(w.phase) * 0.5
     const { legL, legR, armL, armR } = w.group.userData.limbs
-    legL.rotation.x = s
-    legR.rotation.x = -s
-    armL.rotation.x = -s * 0.7
-    armR.rotation.x = s * 0.7
+    legL.rotation.x = sw
+    legR.rotation.x = -sw
+    armL.rotation.x = -sw * 0.7
+    armR.rotation.x = sw * 0.7
 
-    const p = w.group.position
-    if (w.axis === 'z') {
-      p.z += w.dir * w.speed * dt
-      if (w.dir > 0 && p.z > limit) p.z = -limit
-      else if (w.dir < 0 && p.z < -limit) p.z = limit
-    } else {
-      p.x += w.dir * w.speed * dt
-      if (w.dir > 0 && p.x > limit) p.x = -limit
-      else if (w.dir < 0 && p.x < -limit) p.x = limit
-    }
+    // 沿人行道周長前進（dir=-1 為順時針），依所在邊算出位置與面向
+    const L = 2 * w.R
+    const total = 4 * L
+    w.s = ((w.s + w.dir * w.speed * dt) % total + total) % total
+    const k = Math.floor(w.s / L)
+    const u = (w.s % L) / L
+    const a = WALK_CORNERS[k]
+    const b = WALK_CORNERS[(k + 1) % 4]
+    w.group.position.x = w.cx + (a[0] + (b[0] - a[0]) * u) * w.R
+    w.group.position.z = w.cz + (a[1] + (b[1] - a[1]) * u) * w.R
+    w.group.rotation.y = Math.atan2((b[0] - a[0]) * w.dir, (b[1] - a[1]) * w.dir)
   }
 }
 
@@ -1941,37 +1943,27 @@ export function createWorld(scene) {
     }
   }
 
-  // 路邊走動的行人：貼著路緣行走（避開車道），每條街道兩側各 1~2 位
+  // 行人走在人行道上（符合交通法規：不進入車道）：
+  // 沿著各街區基座（人行道）的四周繞行，轉角自動轉向，路徑也會經過騎樓下。
   const pedestrians = []
-  const curbOff = STREET / 2 - 1.0
-  for (let i = 1; i <= GRID; i++) {
-    const sx = -HALF + i * PITCH - STREET / 2
-    for (const side of [-1, 1]) {
-      const n = 1 + Math.floor(Math.random() * 2)
-      for (let k = 0; k < n; k++) {
-        const dir = Math.random() < 0.5 ? 1 : -1
-        const ped = makePedestrian()
-        ped.position.set(sx + side * curbOff, 0.02, rand(-HALF, HALF))
-        ped.rotation.y = dir > 0 ? 0 : Math.PI
-        scene.add(ped)
-        pedestrians.push({ group: ped, axis: 'z', dir, speed: rand(1.1, 1.9), phase: rand(0, Math.PI * 2) })
-      }
-    }
-  }
-  for (let j = 1; j <= GRID; j++) {
-    if (j === CANAL_ROW) continue
-    const sz = -HALF + j * PITCH - STREET / 2
-    for (const side of [-1, 1]) {
-      const n = 1 + Math.floor(Math.random() * 2)
-      for (let k = 0; k < n; k++) {
-        const dir = Math.random() < 0.5 ? 1 : -1
-        const ped = makePedestrian()
-        ped.position.set(rand(-HALF, HALF), 0.02, sz + side * curbOff)
-        ped.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2
-        scene.add(ped)
-        pedestrians.push({ group: ped, axis: 'x', dir, speed: rand(1.1, 1.9), phase: rand(0, Math.PI * 2) })
-      }
-    }
+  const walkR = BLOCK / 2 + 0.6 // 行走線：基座（半寬 BLOCK/2+1）外緣內側 0.4m
+  const PED_COUNT = 30
+  for (let k = 0; k < PED_COUNT; k++) {
+    const bx = Math.floor(Math.random() * GRID)
+    const bz = Math.floor(Math.random() * GRID)
+    const pcx = -HALF + bx * PITCH + BLOCK / 2
+    const pcz = -HALF + bz * PITCH + BLOCK / 2
+    const ped = makePedestrian()
+    ped.position.y = 0.2 // 人行道基座頂面
+    scene.add(ped)
+    pedestrians.push({
+      group: ped,
+      cx: pcx, cz: pcz, R: walkR,
+      s: rand(0, 8 * walkR),                 // 沿人行道周長的行進距離
+      dir: Math.random() < 0.5 ? 1 : -1,     // 順時針或逆時針繞行
+      speed: rand(1.1, 1.9),
+      phase: rand(0, Math.PI * 2),
+    })
   }
 
   const roofSpots = []      // 可放水塔的屋頂 {x, y, z}
