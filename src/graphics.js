@@ -1,4 +1,8 @@
 import * as THREE from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 
 // ---------- 畫質分級 ----------
 // 所有效能相關旗標的單一出處：其他模組只准「讀取」這張表，
@@ -84,6 +88,25 @@ function applyTier(name, ctx) {
   camera.far = t.cameraFar
   camera.updateProjectionMatrix()
   return t
+}
+
+// ---------- 後製特效（僅高畫質，TIERS.post） ----------
+// RenderPass → UnrealBloom（閾值 1.0：只有 HDR 峰值會發光——
+// 積水脈動峰值在高畫質拉超過閾值，線索會「綻放」）→ OutputPass
+// （負責色調映射＋sRGB，與直繪路徑同一條 ACES 曲線）。
+// HalfFloat 目標保住 HDR；WebGL2 以 MSAA samples 維持反鋸齒。
+export function createComposer(renderer, scene, camera) {
+  const size = renderer.getSize(new THREE.Vector2())
+  const pr = renderer.getPixelRatio()
+  const target = new THREE.WebGLRenderTarget(size.x * pr, size.y * pr, {
+    type: THREE.HalfFloatType,
+    samples: renderer.capabilities.isWebGL2 ? 4 : 0,
+  })
+  const composer = new EffectComposer(renderer, target)
+  composer.addPass(new RenderPass(scene, camera))
+  composer.addPass(new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.35, 0.4, 1.0))
+  composer.addPass(new OutputPass())
+  return composer
 }
 
 // ---------- 天空與大氣 ----------

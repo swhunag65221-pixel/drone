@@ -11,6 +11,15 @@ html, body {
 
 #app, #app canvas { position: absolute; inset: 0; display: block; }
 
+/* 柔和暗角：純 CSS 疊層、零 GPU 成本，所有畫質通用 */
+#app::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 62%, rgba(6, 10, 18, 0.22) 100%);
+}
+
 .hidden { display: none !important; }
 
 /* ---------- HUD ---------- */
