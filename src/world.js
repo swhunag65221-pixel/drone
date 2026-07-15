@@ -3097,7 +3097,6 @@ export function createWorld(scene, opts = {}) {
   const eaveSpots = []      // 屋簷上的容器藏匿點（騎樓遮簷、建築物之間的簷面）
 
   let signIdx = 0
-  let spawnPoint = null // 保留空地街區（無建築）的實際中心座標，供無人機安全重生用
 
   // 人行道基座共用材質（49 塊街區共用一份鋪磚貼圖）
   const padMap = gtex.pavement.clone()
@@ -3111,6 +3110,25 @@ export function createWorld(scene, opts = {}) {
   const MUSEUM_BZ = centerIdx
   const HAYASHI_BX = centerIdx + 1
   const HAYASHI_BZ = centerIdx
+
+  // 出發點：每回合隨機從三大地標之一的「正面」出發——
+  // 高度與距離經過取景計算，開場即可看見該地標的完整正面。
+  // 位置皆懸浮於街道上空（淨空、無建築與電線）。
+  const blockC = (bx2, bz2) => ({ x: -HALF + bx2 * PITCH + BLOCK / 2, z: -HALF + bz2 * PITCH + BLOCK / 2 })
+  const chC = blockC(centerIdx, centerIdx)   // 赤崁樓（主樓在街區中心偏北，正面朝南）
+  const muC = blockC(MUSEUM_BX, MUSEUM_BZ)   // 美術館二館（招牌朝南）
+  const haC = blockC(HAYASHI_BX, HAYASHI_BZ) // 林百貨（轉角塔樓朝西南路口）
+  const spawnPose = pick([
+    // 赤崁樓：南側街道上空正對主樓
+    { pos: new THREE.Vector3(chC.x, 10, chC.z + 20), look: new THREE.Vector3(chC.x, 6, chC.z - 5) },
+    // 美術館二館：南側街道上空，五角形頂棚與白色量體全貌入鏡
+    { pos: new THREE.Vector3(muC.x, 14, muC.z + 19), look: new THREE.Vector3(muC.x, 8, muC.z) },
+    // 林百貨：西南路口遠端上空 3/4 視角，轉角塔樓與立面完整入鏡
+    { pos: new THREE.Vector3(haC.x - 24, 14, haC.z - 24), look: new THREE.Vector3(haC.x - 9.6, 10.5, haC.z - 9.6) },
+  ])
+  const spawnPoint = spawnPose.pos
+  const spawnLook = spawnPose.look
+
   const siteBlocks = new Set()
   while (siteBlocks.size < 3) {
     const sbx = Math.floor(Math.random() * GRID)
@@ -3126,7 +3144,6 @@ export function createWorld(scene, opts = {}) {
       const cx = -HALF + bx * PITCH + BLOCK / 2
       const cz = -HALF + bz * PITCH + BLOCK / 2
       const isCenter = bx === Math.floor(GRID / 2) && bz === Math.floor(GRID / 2)
-      if (isCenter) spawnPoint = new THREE.Vector3(cx, 18, cz)
 
       // 街區底座（人行道/基地）：共用鋪磚貼圖材質
       const pad = new THREE.Mesh(new THREE.BoxGeometry(BLOCK + 2, 0.2, BLOCK + 2), padMat)
@@ -3565,7 +3582,7 @@ export function createWorld(scene, opts = {}) {
     place(extra, 6 - containerPlaced, true, 'container', makeContainer, centerPos)
   }
 
-  return { colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones, animatedTextures }
+  return { colliders, inspectables, targets, waterMeshes, spawnPoint, spawnLook, cars, pedestrians, traffic, zones, animatedTextures }
 }
 
 // 產生單一積水樣態的展示物件（開場圖鑑用縮圖渲染）

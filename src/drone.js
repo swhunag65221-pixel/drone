@@ -35,9 +35,15 @@ export class DroneController {
     })
   }
 
-  reset(position) {
+  reset(position, lookAt) {
     this.camera.position.copy(position)
-    this.camera.rotation.set(-0.15, 0, 0)
+    if (lookAt) {
+      // 出發即面向指定地標（開場取景）；消除 lookAt 殘留的 roll 保持水平
+      this.camera.lookAt(lookAt)
+      this.camera.rotation.z = 0
+    } else {
+      this.camera.rotation.set(-0.15, 0, 0)
+    }
     this.velocity.set(0, 0, 0)
     this._bobOffset = 0
     this.camera.fov = this.baseFov
