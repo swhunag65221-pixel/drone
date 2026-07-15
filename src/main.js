@@ -61,7 +61,7 @@ const composer = gfx.flags.post ? createComposer(renderer, scene, camera) : null
 const worldGroup = new THREE.Group()
 scene.add(worldGroup)
 
-let colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones, animatedTextures
+let colliders, inspectables, targets, waterMeshes, spawnPoint, spawnLook, cars, pedestrians, traffic, zones, animatedTextures
 
 function disposeWorld() {
   worldGroup.traverse((obj) => {
@@ -77,13 +77,13 @@ function disposeWorld() {
 
 function buildWorld() {
   disposeWorld()
-  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, cars, pedestrians, traffic, zones, animatedTextures } =
+  ;({ colliders, inspectables, targets, waterMeshes, spawnPoint, spawnLook, cars, pedestrians, traffic, zones, animatedTextures } =
     createWorld(worldGroup, { textureDetail: gfx.flags.textureDetail, anisotropy: gfx.flags.anisotropy }))
 }
 
 buildWorld()
 const drone = new DroneController(camera)
-drone.reset(spawnPoint)
+drone.reset(spawnPoint, spawnLook)
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
@@ -341,7 +341,7 @@ function endGame() {
 
 function startNewRound() {
   buildWorld()
-  drone.reset(spawnPoint)
+  drone.reset(spawnPoint, spawnLook)
 
   state = 'start'
   timeLeft = GAME_TIME
