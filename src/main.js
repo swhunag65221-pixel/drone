@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { createWorld, makeFoundMarker, makeMissedMarker, makePreviewObject, makeSparkBurst, updateCars, updatePedestrians, updateTraffic, TARGET_TYPES } from './world.js'
 import { DroneController } from './drone.js'
-import { initGraphics, createComposer, createSky, createClouds, updateClouds, SKY_HORIZON, TIERS } from './graphics.js'
+import { initGraphics, createComposer, createSky, createClouds, updateClouds, SKY_HORIZON } from './graphics.js'
 
 const GAME_TIME = 120     // 秒
 const MARK_RANGE = 45     // 可標記的最大距離（公尺）
@@ -452,29 +452,6 @@ function animate() {
   if (composer) composer.render()
   else renderer.render(scene, camera)
 }
-
-// ---------- 畫質選項 UI ----------
-const gfxRow = $('gfxRow')
-function updateGfxLabel() {
-  $('gfxCurrent').textContent = `目前：${TIERS[gfx.tier].label}${gfx.source === 'probe' ? '（自動降級）' : ''}`
-  const savedMode = new URLSearchParams(location.search).get('gfx') || localStorage.getItem('gfxTier') || 'auto'
-  gfxRow.querySelectorAll('.gfx-btn').forEach((b) => b.classList.toggle('active', b.dataset.gfx === savedMode))
-}
-gfxRow.addEventListener('click', (e) => {
-  const pick2 = e.target.closest('.gfx-btn')?.dataset.gfx
-  if (!pick2) return
-  const saved = localStorage.getItem('gfxTier') || 'auto'
-  if (pick2 === saved) return
-  gfx.setTier(pick2) // 記住選擇並重新載入（陰影管線需在初始化時切換）
-})
-updateGfxLabel()
-
-// 開場 fps 探測：自動偵測結果實際跑不動時降一級（只降不升；URL/手動指定不介入）
-setTimeout(() => {
-  if (gfx.source === 'url' || gfx.source === 'saved') return
-  const fps = frameTimes.length / Math.max(1e-6, frameTimes.reduce((a, b) => a + b, 0))
-  if (fps < 45 && gfx.demote()) updateGfxLabel()
-}, 3500)
 
 updateHUD()
 animate()

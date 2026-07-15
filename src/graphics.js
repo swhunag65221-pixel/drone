@@ -46,29 +46,12 @@ export const TIERS = {
   },
 }
 
-const TIER_ORDER = ['high', 'medium', 'low']
-
-// 偵測順序：URL 覆寫（測試用）→ 記憶的手動選擇 → GPU 字串 → 預設高
-// 之後開場另有 fps 探測，只降不升（見 initGraphics.probe）。
-function detectTier(renderer) {
+// 固定使用低畫質（依需求移除畫質選項與自動偵測）；
+// 保留 ?gfx= URL 覆寫僅供開發驗證用。
+function detectTier() {
   const q = new URLSearchParams(location.search).get('gfx')
   if (TIERS[q]) return { tier: q, source: 'url' }
-
-  const saved = localStorage.getItem('gfxTier')
-  if (TIERS[saved]) return { tier: saved, source: 'saved' }
-
-  try {
-    const gl = renderer.getContext()
-    const ext = gl.getExtension('WEBGL_debug_renderer_info')
-    const gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '')
-    // 軟體渲染（headless 測試環境）一律最低畫質——後製永不啟動，測試管線維持輕量
-    if (/swiftshader|llvmpipe|software/i.test(gpu)) return { tier: 'low', source: 'gpu' }
-    const mobileGpu = /mali|adreno|powervr|apple gpu/i.test(gpu)
-    const touchMobile = navigator.maxTouchPoints > 1 && /mobile|android|iphone|ipad/i.test(navigator.userAgent)
-    if (mobileGpu || touchMobile) return { tier: 'medium', source: 'gpu' }
-  } catch { /* 偵測失敗就走預設 */ }
-
-  return { tier: 'high', source: 'default' }
+  return { tier: 'low', source: 'fixed' }
 }
 
 // 套用分級：pixelRatio／陰影／霧／視距。
@@ -207,30 +190,15 @@ export function updateClouds(clouds, dt) {
   }
 }
 
-// 建立畫質系統：偵測 → 套用 → 回傳控制物件
+// 建立畫質系統：固定低畫質 → 套用 → 回傳控制物件
 export function initGraphics(ctx) {
   const { renderer } = ctx
-  const detected = detectTier(renderer)
+  const detected = detectTier()
 
   const gfx = {
     tier: detected.tier,
     source: detected.source,
     flags: TIERS[detected.tier],
-    // 手動選擇：記住並重新載入（陰影管線在初始化時才可完整切換）
-    setTier(name) {
-      if (name === 'auto') localStorage.removeItem('gfxTier')
-      else localStorage.setItem('gfxTier', name)
-      location.reload()
-    },
-    // fps 探測降級（開場 overlay 期間呼叫）：只降一級、只動安全旗標
-    demote() {
-      const idx = TIER_ORDER.indexOf(gfx.tier)
-      if (idx >= TIER_ORDER.length - 1) return false
-      gfx.tier = TIER_ORDER[idx + 1]
-      gfx.flags = applyTier(gfx.tier, ctx)
-      gfx.source = 'probe'
-      return true
-    },
     applyResize() {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, gfx.flags.pixelRatio))
     },
