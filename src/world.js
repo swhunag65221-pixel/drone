@@ -2618,92 +2618,272 @@ function addHayashiStore(scene, colliders, cx, cz) {
   }
 }
 
-// 赤崁樓：城市中央廣場的地標建築（純造景、不可互動，僅供飛行時辨認方向）
+// 赤崁樓：城市中央廣場的地標建築（純造景、不可互動，僅供飛行時辨認方向）。
+// 依實景照片重現：灰色石基座＋前排御龜石碑、紅磚一樓與迴廊柱、
+// 紅瓦重簷（白色燕尾脊飾）、藍綠色二樓木牆＋紅框窗＋白欄杆露台、
+// 歇山頂中央白色脊飾與寶頂。
 function makeChihkanTower() {
   const g = new THREE.Group()
 
-  const brickMat = new THREE.MeshStandardMaterial({ color: 0x9c5a3c, roughness: 0.85 })
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0xd8c7a0, roughness: 0.8 })
-  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x9c2020, roughness: 0.7 })
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x1f3a2e, roughness: 0.65 })
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.4, metalness: 0.5 })
-  const archMat = new THREE.MeshStandardMaterial({ color: 0x4a2c1e, roughness: 0.9 })
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x9a968c, roughness: 0.95 })
+  const steleMat = new THREE.MeshStandardMaterial({ color: 0xbdb9ae, roughness: 0.9 })
+  const brickMat = new THREE.MeshStandardMaterial({ color: 0x9c5230, roughness: 0.85 })
+  const brickDarkMat = new THREE.MeshStandardMaterial({ color: 0x7a3a26, roughness: 0.85 })
+  const tealMat = new THREE.MeshStandardMaterial({ color: 0x2e5f6a, roughness: 0.8 })
+  const tealDarkMat = new THREE.MeshStandardMaterial({ color: 0x1e4550, roughness: 0.8 })
+  const redFrameMat = new THREE.MeshStandardMaterial({ color: 0x9c2b20, roughness: 0.7 })
+  const tileMat = new THREE.MeshStandardMaterial({ color: 0xa6402e, roughness: 0.75 })
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xe8e2d2, roughness: 0.8 })
 
-  // 紅磚城座（普羅民遮城基座意象）
-  const baseW = 13, baseD = 9, baseH = 3.6
-  const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, baseH, baseD), brickMat)
+  // 灰色石造基座（普羅民遮城殘蹟意象）
+  const baseW = 12, baseD = 9.4, baseH = 2.2
+  const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, baseH, baseD), stoneMat)
   base.position.y = baseH / 2
   base.castShadow = true
   base.receiveShadow = true
   g.add(base)
 
-  // 城座立面仿拱門的裝飾陰影
-  for (const face of [1, -1]) {
-    for (let i = -1; i <= 1; i++) {
-      const arch = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 0.25), archMat)
-      arch.position.set(i * 3.6, 1.3, face * (baseD / 2 + 0.05))
-      g.add(arch)
-    }
+  // 基座前的御龜石碑列（九座圓頂石碑立於小台座上）
+  for (let i = 0; i < 9; i++) {
+    const sx = -4.8 + i * 1.2
+    const pedestal = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.45, 0.55), stoneMat)
+    pedestal.position.set(sx, 0.225, baseD / 2 + 0.75)
+    g.add(pedestal)
+    const stele = new THREE.Mesh(new THREE.BoxGeometry(0.68, 1.6, 0.16), steleMat)
+    stele.position.set(sx, 0.45 + 0.8, baseD / 2 + 0.75)
+    stele.castShadow = true
+    g.add(stele)
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.16, 10, 1, false, 0, Math.PI), steleMat)
+    cap.rotation.z = Math.PI / 2
+    cap.rotation.y = Math.PI / 2
+    cap.position.set(sx, 2.05, baseD / 2 + 0.75)
+    g.add(cap)
   }
 
-  // 重簷閣樓（海神廟／文昌閣意象），各自兩層屋頂
-  function makePavilion() {
-    const pg = new THREE.Group()
-    const wallW = 4.6, wallD = 4.6, wallH = 3.0
-
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(wallW, wallH, wallD), wallMat)
-    wall.position.y = wallH / 2
-    wall.castShadow = true
-    pg.add(wall)
-
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, wallH, 8), pillarMat)
-        pillar.position.set(sx * (wallW / 2 - 0.25), wallH / 2, sz * (wallD / 2 - 0.25))
-        pg.add(pillar)
+  // ---------- 一樓：紅磚牆＋外圈迴廊柱 ----------
+  const f1W = 9.2, f1D = 7.2, f1H = 3.4
+  const f1Y = baseH
+  const f1 = new THREE.Mesh(new THREE.BoxGeometry(f1W, f1H, f1D), brickMat)
+  f1.position.y = f1Y + f1H / 2
+  f1.castShadow = true
+  f1.receiveShadow = true
+  g.add(f1)
+  // 迴廊柱（磚紅色）沿四邊
+  const colGeo = new THREE.CylinderGeometry(0.18, 0.18, f1H, 8)
+  const perimW = f1W / 2 + 1.1
+  const perimD = f1D / 2 + 1.1
+  for (let i = -2; i <= 2; i++) {
+    for (const side of [-1, 1]) {
+      const colZ = new THREE.Mesh(colGeo, brickDarkMat)
+      colZ.position.set(i * (perimW / 2.2), f1Y + f1H / 2, side * perimD)
+      g.add(colZ)
+      if (Math.abs(i) <= 1) {
+        const colX = new THREE.Mesh(colGeo, brickDarkMat)
+        colX.position.set(side * perimW, f1Y + f1H / 2, i * (perimD / 1.6))
+        g.add(colX)
       }
     }
+  }
+  // 一樓花磚欄杆帶（基座頂沿）
+  const rail1 = new THREE.Mesh(new THREE.BoxGeometry(baseW - 0.4, 0.55, 0.18), brickDarkMat)
+  rail1.position.set(0, baseH + 0.28, baseD / 2 - 0.2)
+  g.add(rail1)
 
-    // 下層屋簷
-    const lowerEaveW = wallW * 1.35, lowerEaveD = wallD * 1.35
-    const lowerEave = new THREE.Mesh(new THREE.BoxGeometry(lowerEaveW, 0.35, lowerEaveD), roofMat)
-    lowerEave.position.y = wallH + 0.18
-    lowerEave.castShadow = true
-    pg.add(lowerEave)
-    addSwallowWings(pg, lowerEaveW, lowerEaveD, wallH + 0.18, roofMat)
+  // 一樓大屋頂（重簷下簷）：紅瓦簷板＋截角錐坡面、白色燕尾脊飾
+  const eave1W = f1W + 3.4, eave1D = f1D + 3.4
+  const eave1Y = f1Y + f1H + 0.18
+  const eave1 = new THREE.Mesh(new THREE.BoxGeometry(eave1W, 0.36, eave1D), tileMat)
+  eave1.position.y = eave1Y
+  eave1.castShadow = true
+  g.add(eave1)
+  const slope1 = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 6.9, 1.5, 4), tileMat)
+  slope1.rotation.y = Math.PI / 4
+  slope1.scale.z = 0.78
+  slope1.position.y = eave1Y + 0.9
+  slope1.castShadow = true
+  g.add(slope1)
+  addSwallowWings(g, eave1W, eave1D, eave1Y, whiteMat)
 
-    // 上層小閣
-    const upperWallH = 1.5
-    const upperWall = new THREE.Mesh(new THREE.BoxGeometry(wallW * 0.65, upperWallH, wallD * 0.65), wallMat)
-    upperWall.position.y = wallH + 0.36 + upperWallH / 2
-    pg.add(upperWall)
-
-    const upperEaveW = wallW * 0.65 * 1.35, upperEaveD = wallD * 0.65 * 1.35
-    const upperEave = new THREE.Mesh(new THREE.BoxGeometry(upperEaveW, 0.3, upperEaveD), roofMat)
-    upperEave.position.y = wallH + 0.36 + upperWallH + 0.15
-    pg.add(upperEave)
-    addSwallowWings(pg, upperEaveW, upperEaveD, wallH + 0.36 + upperWallH + 0.15, roofMat)
-
-    // 正脊金色滾邊與寶頂
-    const ridgeY = wallH + 0.36 + upperWallH + 0.32
-    const ridge = new THREE.Mesh(new THREE.BoxGeometry(upperEaveW * 0.85, 0.12, 0.12), goldMat)
-    ridge.position.y = ridgeY
-    pg.add(ridge)
-    const finial = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), goldMat)
-    finial.position.y = ridgeY + 0.3
-    pg.add(finial)
-
-    return pg
+  // ---------- 二樓：藍綠色木牆＋紅框窗＋白色欄杆露台 ----------
+  const f2W = 6.2, f2D = 4.9, f2H = 2.9
+  const f2Y = eave1Y + 1.5
+  const f2 = new THREE.Mesh(new THREE.BoxGeometry(f2W, f2H, f2D), tealMat)
+  f2.position.y = f2Y + f2H / 2
+  f2.castShadow = true
+  g.add(f2)
+  // 紅框窗帶（四面）
+  for (const [w, d, dx, dz] of [
+    [f2W - 0.8, 0.1, 0, f2D / 2], [f2W - 0.8, 0.1, 0, -f2D / 2],
+    [0.1, f2D - 0.8, f2W / 2, 0], [0.1, f2D - 0.8, -f2W / 2, 0],
+  ]) {
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, 1.5, d + 0.12), redFrameMat)
+    frame.position.set(dx, f2Y + f2H * 0.52, dz)
+    g.add(frame)
+    const win = new THREE.Mesh(new THREE.BoxGeometry(w, 1.3, d), tealDarkMat)
+    win.position.set(dx * 1.02, f2Y + f2H * 0.52, dz * 1.02)
+    g.add(win)
+  }
+  // 白色欄杆露台（環繞二樓）
+  const deckW = f2W + 2.0, deckD = f2D + 2.0
+  const rail2 = new THREE.Mesh(new THREE.BoxGeometry(deckW, 0.5, 0.14), whiteMat)
+  rail2.position.set(0, f2Y + 0.45, deckD / 2)
+  g.add(rail2)
+  const rail3 = rail2.clone()
+  rail3.position.z = -deckD / 2
+  g.add(rail3)
+  for (const side of [-1, 1]) {
+    const railS = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, deckD), whiteMat)
+    railS.position.set(side * deckW / 2, f2Y + 0.45, 0)
+    g.add(railS)
   }
 
-  const pavA = makePavilion()
-  pavA.position.set(-3.6, baseH + 0.15, 0)
-  g.add(pavA)
-  const pavB = makePavilion()
-  pavB.position.set(3.6, baseH + 0.15, 0)
-  g.add(pavB)
+  // 二樓歇山頂：紅瓦簷板＋坡面、白色燕尾與中央脊飾、葫蘆寶頂
+  const eave2W = f2W + 2.6, eave2D = f2D + 2.6
+  const eave2Y = f2Y + f2H + 0.15
+  const eave2 = new THREE.Mesh(new THREE.BoxGeometry(eave2W, 0.32, eave2D), tileMat)
+  eave2.position.y = eave2Y
+  eave2.castShadow = true
+  g.add(eave2)
+  const slope2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 4.4, 1.7, 4), tileMat)
+  slope2.rotation.y = Math.PI / 4
+  slope2.scale.z = 0.75
+  slope2.position.y = eave2Y + 1.0
+  slope2.castShadow = true
+  g.add(slope2)
+  addSwallowWings(g, eave2W, eave2D, eave2Y, whiteMat)
+  // 正脊與中央白色脊飾（捲草雙翹＋寶頂）
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.18, 0.18), whiteMat)
+  ridge.position.y = eave2Y + 1.85
+  g.add(ridge)
+  for (const side of [-1, 1]) {
+    const horn = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.7, 0.18), whiteMat)
+    horn.position.set(side * 1.3, eave2Y + 2.1, 0)
+    horn.rotation.z = -side * 0.35
+    g.add(horn)
+  }
+  const gourd = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), whiteMat)
+  gourd.position.y = eave2Y + 2.15
+  g.add(gourd)
+  const gourdTop = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), whiteMat)
+  gourdTop.position.y = eave2Y + 2.45
+  g.add(gourdTop)
 
   return g
+}
+
+// 大王椰子：赤崁樓園區的高聳椰子樹（照片中的顯著元素）
+function makePalmTree() {
+  const g = new THREE.Group()
+  const h = rand(7.5, 11)
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.26, h, 8),
+    new THREE.MeshStandardMaterial({ color: 0x9a8a72, roughness: 0.9 })
+  )
+  trunk.position.y = h / 2
+  trunk.rotation.z = rand(-0.04, 0.04)
+  trunk.castShadow = true
+  g.add(trunk)
+  const frondMat = pick(getSharedMats().leaf)
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + rand(-0.2, 0.2)
+    const frond = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.05, 2.6), frondMat)
+    frond.position.set(Math.cos(a) * 1.05, h + 0.15 - (i % 2) * 0.18, Math.sin(a) * 1.05)
+    frond.rotation.y = -a - Math.PI / 2
+    frond.rotation.x = 0.42 + (i % 2) * 0.22 // 羽葉下垂
+    g.add(frond)
+  }
+  const bud = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 8), frondMat)
+  bud.position.y = h + 0.15
+  g.add(bud)
+  if (contactLevel === 'all') g.add(makeContactShadow(2.6, 2.6, 0.02))
+  return g
+}
+
+// 赤崁樓園區：草皮、紅磚步道、修剪灌木、大王椰子、暗紅色圍牆與入口
+function addChihkanGrounds(scene, colliders, cx, cz) {
+  // 草皮鋪滿街區
+  const lawnMap = getGroundTextures().lawn.clone()
+  lawnMap.repeat.set(5, 5)
+  const lawn = new THREE.Mesh(
+    new THREE.PlaneGeometry(BLOCK - 1, BLOCK - 1),
+    new THREE.MeshStandardMaterial({ map: lawnMap, roughness: 0.95 })
+  )
+  lawn.rotation.x = -Math.PI / 2
+  lawn.position.set(cx, 0.212, cz)
+  lawn.receiveShadow = true
+  scene.add(lawn)
+
+  // 紅磚步道：南側入口直通樓前＋樓前橫向廣場
+  const brickPathMat = new THREE.MeshStandardMaterial({
+    map: getGroundTextures().pavement.clone(), color: 0xc06a50, roughness: 0.95,
+  })
+  brickPathMat.map.repeat.set(3, 3)
+  const pathMain = new THREE.Mesh(new THREE.PlaneGeometry(5, 11), brickPathMat)
+  pathMain.rotation.x = -Math.PI / 2
+  pathMain.position.set(cx, 0.22, cz + 6.5)
+  scene.add(pathMain)
+  const pathCross = new THREE.Mesh(new THREE.PlaneGeometry(19, 4.6), brickPathMat)
+  pathCross.rotation.x = -Math.PI / 2
+  pathCross.position.set(cx, 0.221, cz + 1.5)
+  scene.add(pathCross)
+
+  // 修剪灌木（圓球狀）沿步道與樓前
+  const bushMat = new THREE.MeshStandardMaterial({ color: 0x3d6b34, roughness: 0.95 })
+  const bushSpots = [
+    [-3.6, 4.2], [3.6, 4.2], [-6.5, 0.5], [6.5, 0.5],
+    [-8.5, 5], [8.5, 5], [-3.2, 8.5], [3.2, 8.5], [-9, -3], [9, -3],
+  ]
+  for (const [dx, dz] of bushSpots) {
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(rand(0.5, 0.85), 9, 7), bushMat)
+    bush.scale.y = 0.8
+    bush.position.set(cx + dx + rand(-0.3, 0.3), 0.5, cz + dz + rand(-0.3, 0.3))
+    bush.castShadow = true
+    scene.add(bush)
+  }
+
+  // 大王椰子環繞園區
+  for (const [dx, dz] of [[-10, -9], [10, -9], [-11, 1], [11, 2], [-7.5, 9], [7.5, 9], [4, -11], [-4, -11]]) {
+    const palm = makePalmTree()
+    palm.position.set(cx + dx, 0.21, cz + dz)
+    scene.add(palm)
+  }
+
+  // 暗紅色圍牆（南面留入口）＋灰色壓頂
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x7a2a24, roughness: 0.85 })
+  const capMat = new THREE.MeshStandardMaterial({ color: 0xb8b2a4, roughness: 0.9 })
+  const W = BLOCK / 2 - 0.5
+  const segs = [
+    [0, -W, 2 * W, true],           // 北
+    [-W, 0, 2 * W, false],          // 西
+    [W, 0, 2 * W, false],           // 東
+    [-(3.2 + (W - 3.2) / 2), W, W - 3.2, true], // 南（左段，留 6.4m 入口）
+    [3.2 + (W - 3.2) / 2, W, W - 3.2, true],    // 南（右段）
+  ]
+  for (const [dx, dz, len, horiz] of segs) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(horiz ? len : 0.4, 1.7, horiz ? 0.4 : len), wallMat)
+    wall.position.set(cx + dx, 1.05, cz + dz)
+    wall.castShadow = true
+    wall.receiveShadow = true
+    scene.add(wall)
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(horiz ? len : 0.56, 0.12, horiz ? 0.56 : len), capMat)
+    cap.position.set(cx + dx, 1.96, cz + dz)
+    scene.add(cap)
+    const box = new THREE.Box3().setFromObject(wall)
+    box.expandByScalar(0.4)
+    colliders.push(box)
+  }
+  // 入口門柱與石碑
+  for (const side of [-1, 1]) {
+    const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.3, 0.7), wallMat)
+    pillar.position.set(cx + side * 3.2, 1.35, cz + W)
+    scene.add(pillar)
+    const pcap = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.16, 0.95), capMat)
+    pcap.position.set(cx + side * 3.2, 2.56, cz + W)
+    scene.add(pcap)
+  }
+  const nameStone = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.35), capMat)
+  nameStone.position.set(cx + 4.6, 0.95, cz + W + 0.6)
+  scene.add(nameStone)
 }
 
 // ---------- 建立整個城市 ----------
@@ -2956,8 +3136,10 @@ export function createWorld(scene, opts = {}) {
 
       // 中央街區留空當出發廣場，並放置赤崁樓地標；3 個街區是工地；其餘 ~14% 是社區公園
       if (isCenter) {
+        // 赤崁樓園區：先鋪草皮/步道/圍牆/椰子樹，再放主樓（各自碰撞範圍）
+        addChihkanGrounds(scene, colliders, cx, cz)
         const landmark = makeChihkanTower()
-        landmark.position.set(cx, 0.2, cz - 7)
+        landmark.position.set(cx, 0.2, cz - 5)
         scene.add(landmark)
 
         const landmarkBox = new THREE.Box3().setFromObject(landmark)
